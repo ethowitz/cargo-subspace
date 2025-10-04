@@ -34,8 +34,6 @@ This tool is distributed on crates.io, which lets you do the following:
 cargo install --locked cargo-subspace
 ```
 
-Alternatively, you may download release artifacts directly from GitHub.
-
 ## Configuration
 
 This tool is designed to be invoked directly by your editor. I've tested it with both VSCode and
