@@ -2,7 +2,7 @@
 name = "cargo-subspace"
 description = "A tool to make rust-analyzer work better with very large cargo workspaces"
 license = "MIT"
-version = "0.1.0"
+version = "0.2.1"
 edition = "2024"
 keywords = ["rust-analyzer", "cargo", "workspace", "tools"]
 categories = ["command-line-utilities", "development-tools::cargo-plugins"]
