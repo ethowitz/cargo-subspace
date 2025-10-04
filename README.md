@@ -28,7 +28,13 @@ through this path.)
 
 ## Installation
 
-This tool is distributed on crates.io, which lets you do the following:
+First, make sure that the `rust-src` component is installed for your rust toolchain:
+
+```sh
+rustup component add rust-src
+```
+
+Then:
 
 ```sh
 cargo install --locked cargo-subspace
