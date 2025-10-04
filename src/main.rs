@@ -106,17 +106,8 @@ fn set_up_tracing(args: &CargoSubspace) -> Result<Option<WorkerGuard>> {
     }
 }
 
-fn version() -> String {
-    let profile = env!("CARGO_BUILD_PROFILE");
-
-    if profile == "debug" {
-        let mut version = env!("GIT_COMMIT_HASH").chars().take(7).collect::<String>();
-        version.push_str(" (debug)");
-
-        version
-    } else {
-        env!("CARGO_PKG_VERSION").to_string()
-    }
+fn version() -> &'static str {
+    env!("CARGO_PKG_VERSION")
 }
 
 fn discover<P>(manifest_path: P, flamegraph: Option<PathBuf>) -> Result<()>
