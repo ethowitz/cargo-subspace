@@ -26,9 +26,21 @@ rust-analyzer to use third party build tools (e.g. bazel or buck) to discover cr
 project. (This project still uses cargo under the hood, but it integrates into rust-analyzer
 through this path.)
 
+## Caveat
+
+Note that, because crates are indexed lazily as you open source code files, you will not be able to
+perform any actions that require knowledge of the **dependents** of the current crate (that is, the
+crates in your workspace that *depend on* the current crate). Some examples include:
+
+- Searching for a symbol in a crate for which you've not yet opened any source code files
+- Finding references to symbols (e.g. functions, types, etc.) defined in the current crate in
+  crates that *depend on* the crate (unless you've already opened a file from a dependent crate)
+
 ## Installation
 
-First, make sure that the `rust-src` component is installed for your rust toolchain:
+First, make sure that the `rust-src` component is installed for your rust toolchain. This downloads
+the source code for the crates built-in to rust (e.g. `std` and `core`) so rust-analyzer can
+properly index them.
 
 ```sh
 rustup component add rust-src
