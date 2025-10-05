@@ -31,15 +31,20 @@ rust-analyzer to use third party build tools (e.g. bazel or buck) to discover cr
 project. (This project still uses cargo under the hood, but it integrates into rust-analyzer
 through this path.)
 
-## Caveat
+## Caveats
 
 Note that, because crates are indexed lazily as you open source code files, you will not be able to
-perform any actions that require knowledge of the **dependents** of the current crate (that is, the
-crates in your workspace that *depend on* the current crate). Some examples include:
+correctly perform any actions that require knowledge of all of the **dependents** of the current
+crate (that is, the crates in your workspace that *depend on* the current crate). Some examples
+include:
 
-- Searching for a symbol in a crate for which you've not yet opened any source code files
 - Finding references to symbols (e.g. functions, types, etc.) defined in the current crate in
-  crates that *depend on* the crate (unless you've already opened a file from a dependent crate)
+  crates that *depend on* the crate (unless you've already opened a file from the dependent crate,
+  which means it is already known to rust-analyzer)
+- Performing an LSP-powered rename (instances of the symbol in unloaded crates will not be
+  correctly renamed, since rust-analyzer has not indexed those crates)
+
+Additionally, symbols defined in unloaded crates will not appear in a symbol search.
 
 ## Installation
 
