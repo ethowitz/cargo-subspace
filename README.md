@@ -59,7 +59,7 @@ cargo install --locked cargo-subspace
 
 ## Configuration
 
-This tool is designed to be invoked directly by your editor. I've tested it with both VSCode and
+This tool is designed to be invoked directly by rust-analyzer. I've tested it with both VSCode and
 neovim, but theoretically, it should work with any editor that has LSP support.
 
 ### VSCode
