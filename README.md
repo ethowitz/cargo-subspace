@@ -1,21 +1,26 @@
 # cargo subspace
 
-## tl;dr
+A tool that forces rust-analyzer to lazily index crates in the workspace as you open new files. It
+is useful if you have a very large cargo workspace (think hundreds of crates) and you find that
+rust-analyzer can be slow or laggy as a result.
 
-This tool forces rust-analyzer to lazily index crates in the workspace as you open new files. It
-is useful if you have a very big cargo workspace and you find that rust-analyzer often slows to a
-crawl.
+## A note
+
+**I want to preface all of this by saying that rust-analyzer is an amazing project, and I am
+eternally grateful to the many people who contribute to it! It makes developing rust code a breeze,
+and it has surely significantly contributed to Rust's widespread adoption.**
 
 ## What the heck is this
 
-This tool exists to improve the rust-analyzer experience for large cargo workspaces.
+This tool exists to improve the rust-analyzer experience for very large cargo workspaces.
 Cargo workspaces can contain a (theoretically) unbounded number of crates. Many organizations
 prefer to maintain a single cargo workspace (e.g. in a monorepo) to keep dependency versions
 consistent across different services or libraries and simplify tooling. However, rust-analyzer
-doesn't handle this well--it indexes the *entire* cargo workspace eagerly.
-`rust-analyzer.check.workspace=false` improves this slightly by running `cargo check` only on
-the crate currently being worked on, but it doesn't prevent rust-analyzer from indexing code and
-building proc macros for the whole workspace when it first starts up.
+indexes the crates in the cargo workspace pretty eagerly, which can take quite a long time.
+`check.workspace = false` and `cachePriming.enable = false` can help make things a bit lazier,
+but in my experience, they don't solve the problem entirely. Even after indexing is finished,
+certain actions, like autocomplete and and finding references to symbols, can be laggy due to the
+very large dependency graph.
 
 Rather than allowing rust-analyzer to discover all the crates in the workspace at startup, this
 tool tells rust-analyzer about the crates in your workspace selectively as you open new files. It
