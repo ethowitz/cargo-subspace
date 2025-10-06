@@ -17,7 +17,7 @@ use tracing::level_filters::LevelFilter;
 use tracing::{debug, error};
 use tracing_appender::non_blocking::WorkerGuard;
 
-use crate::rust_project::{compute_project_json, find_sysroot};
+use crate::rust_project::compute_project_json;
 use cli::{CargoSubspace, DiscoverArgument, DiscoverProjectData, SubspaceCommand};
 
 const DEFAULT_LOG_LOCATION: &str = ".local/state/cargo-subspace";
@@ -29,9 +29,11 @@ fn main() -> Result<()> {
 
     let _tracing_guard = set_up_tracing(&args)?;
     let version = version();
-    let sysroot = find_sysroot()?;
 
-    debug!(%version, sysroot = %sysroot.display(), ?command, ?args);
+    let path = env::var("PATH")?;
+    let dir = env::current_dir()?;
+    debug!(path, cwd = %dir.display(), %version, ?command, ?args);
+
     main_inner(args).inspect_err(|e| {
         error!("{e}");
 
@@ -44,8 +46,43 @@ fn main() -> Result<()> {
     })
 }
 
+struct Context {
+    cargo_home: Option<PathBuf>,
+    flamegraph: Option<PathBuf>,
+}
+
+impl Context {
+    fn cargo(&self) -> Command {
+        self.toolchain_command("cargo")
+    }
+
+    fn rustc(&self) -> Command {
+        self.toolchain_command("rustc")
+    }
+
+    fn toolchain_command(&self, command: &str) -> Command {
+        let mut cmd = Command::new(command);
+
+        if let Some(cargo_home) = self.cargo_home.as_ref() {
+            cmd.env("PATH", cargo_home);
+        }
+
+        cmd
+    }
+}
+
+impl From<&CargoSubspace> for Context {
+    fn from(value: &CargoSubspace) -> Self {
+        Context {
+            cargo_home: value.cargo_home.clone(),
+            flamegraph: value.flamegraph.clone(),
+        }
+    }
+}
+
 fn main_inner(args: CargoSubspace) -> Result<()> {
     let execution_start = Instant::now();
+    let ctx = (&args).into();
 
     match args.command {
         SubspaceCommand::Version => {
@@ -56,12 +93,12 @@ fn main_inner(args: CargoSubspace) -> Result<()> {
                 log_progress("Looking for manifest path")?;
                 let manifest_path = find_manifest(&path)?;
 
-                discover(manifest_path, args.flamegraph)?;
+                discover(&ctx, &manifest_path)?;
             }
-            DiscoverArgument::Buildfile(manifest_path) => discover(manifest_path, args.flamegraph)?,
+            DiscoverArgument::Buildfile(manifest_path) => discover(&ctx, &manifest_path)?,
         },
-        SubspaceCommand::Check { path } => check("check", path)?,
-        SubspaceCommand::Clippy { path } => check("clippy", path)?,
+        SubspaceCommand::Check { path } => check(&ctx, "check", path)?,
+        SubspaceCommand::Clippy { path } => check(&ctx, "clippy", path)?,
     }
 
     debug!(execution_time_seconds = execution_start.elapsed().as_secs_f32());
@@ -113,27 +150,28 @@ fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }
 
-fn discover<P>(manifest_path: P, flamegraph: Option<PathBuf>) -> Result<()>
-where
-    P: AsRef<Path>,
-{
-    let manifest_path = manifest_path.as_ref();
-
+fn discover(ctx: &Context, manifest_path: &Path) -> Result<()> {
     log_progress("Fetching packages")?;
-    Command::new("cargo")
+    ctx.cargo()
         .arg("fetch")
         .arg("--manifest-path")
         .arg(manifest_path.as_os_str())
         .output()?;
 
     log_progress("Fetching metadata")?;
-    let metadata = MetadataCommand::new()
-        .features(CargoOpt::AllFeatures)
-        .exec()?;
+    let mut cmd = MetadataCommand::new();
+    cmd.features(CargoOpt::AllFeatures);
 
-    let project = compute_project_json(metadata, manifest_path, flamegraph)?;
+    if let Some(cargo_home) = ctx.cargo_home.as_ref() {
+        cmd.cargo_path(cargo_home.join("cargo"));
+    }
 
-    let workspace_root = Command::new("cargo")
+    let metadata = cmd.exec()?;
+
+    let project = compute_project_json(ctx, metadata, manifest_path)?;
+
+    let workspace_root = ctx
+        .cargo()
         .arg("locate-project")
         .arg("--workspace")
         .arg("--message-format")
@@ -156,10 +194,11 @@ where
     Ok(())
 }
 
-fn check(command: &'static str, file: String) -> Result<()> {
+fn check(ctx: &Context, command: &'static str, file: String) -> Result<()> {
     let manifest = find_manifest(file)?;
 
-    let status = Command::new("cargo")
+    let status = ctx
+        .cargo()
         .arg(command)
         .arg("--message-format=json")
         .arg("--keep-going")

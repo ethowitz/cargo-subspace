@@ -129,6 +129,53 @@ also be set via lspconfig.
 }
 ```
 
+### Kate
+
+Kate doesn't seem to include the typical cargo home (`~/.cargo/bin`) directory on the `PATH` it
+passes to rust-analyzer, so you'll need to pass the cargo home path to `cargo-subspace` directly,
+and you'll need to provide an absolute path to the `cargo-subspace` binary. In the example below,
+`<CARGO HOME>` should be substituted for an absolute path to the directory in which your cargo
+binaries reside (usually, this is `~/.cargo/bin`).
+
+These settings should be specified in `Settings --> LSP Client --> User Server Settings`:
+
+```json
+{
+  "servers": {
+    "rust": {
+      "useWorkspace": false,
+      "initializationOptions": {
+        "check": {
+          "allFeatures": true,
+          "overrideCommand": [
+            "<CARGO HOME>/cargo-subspace",
+            "--cargo-home=<CARGO HOME>",
+            "clippy",
+            "$saved_file"
+          ]
+        },
+        "workspace": {
+          "discoverConfig": {
+            "command": [
+              "<CARGO HOME>/cargo-subspace",
+              "--cargo-home=<CARGO HOME>",
+              "discover",
+              "{arg}"
+            ],
+            "progressLabel": "cargo-subspace",
+            "filesToWatch": [
+              "Cargo.toml"
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+Note the `"useWorkspace": false` line; this is required!
+
 ## Troubleshooting/Debugging
 
 If you run into trouble, please feel free to open an issue with the following:

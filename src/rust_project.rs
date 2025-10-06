@@ -2,7 +2,6 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::Display;
 use std::fs::File;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use anyhow::Result;
 use cargo_metadata::camino::Utf8PathBuf;
@@ -11,8 +10,8 @@ use cargo_metadata::{BuildScript, Edition, Metadata, PackageId};
 use serde::Serialize;
 use tracing::debug;
 
-use crate::log_progress;
 use crate::proc_macros::build_compile_time_dependencies;
+use crate::{Context, log_progress};
 
 #[derive(Debug, Clone, Serialize)]
 pub(crate) struct ProjectJson {
@@ -290,32 +289,25 @@ impl TargetKind {
     }
 }
 
-pub(crate) fn find_sysroot() -> Result<PathBuf> {
-    Ok(String::from_utf8(
-        Command::new("rustc")
-            .arg("--print")
-            .arg("sysroot")
-            .output()?
-            .stdout,
-    )?
-    .trim()
-    .into())
+pub(crate) fn find_sysroot(ctx: &Context) -> Result<PathBuf> {
+    Ok(
+        String::from_utf8(ctx.rustc().arg("--print").arg("sysroot").output()?.stdout)?
+            .trim()
+            .into(),
+    )
 }
 
-pub(crate) fn compute_project_json<P>(
+pub(crate) fn compute_project_json(
+    ctx: &Context,
     metadata: Metadata,
-    manifest_path: P,
-    flamegraph: Option<PathBuf>,
-) -> Result<ProjectJson>
-where
-    P: AsRef<Path>,
-{
+    manifest_path: &Path,
+) -> Result<ProjectJson> {
     log_progress("Finding sysroot")?;
-    let sysroot = find_sysroot()?;
+    let sysroot = find_sysroot(ctx)?;
     debug!(sysroot = %sysroot.display());
 
     let sysroot_src = sysroot.join("lib/rustlib/src/rust/library");
-    let crates = crates_from_metadata(metadata, manifest_path, flamegraph)?;
+    let crates = crates_from_metadata(ctx, metadata, manifest_path)?;
 
     Ok(ProjectJson {
         sysroot: sysroot.to_string_lossy().to_string(),
@@ -569,8 +561,10 @@ impl PackageGraph {
     }
 }
 
-fn crates_from_metadata<P>(
+fn crates_from_metadata(
+    ctx: &Context,
     metadata: Metadata,
+<<<<<<< HEAD
     manifest_path: P,
     flamegraph: Option<PathBuf>,
 ) -> Result<Vec<Crate>>
@@ -591,12 +585,47 @@ where
             })
             .transpose()?
     };
+||||||| parent of f0566d5 (treewide: fix kate)
+    manifest_path: P,
+    flamegraph: Option<PathBuf>,
+) -> Result<Vec<Crate>>
+where
+    P: AsRef<Path>,
+{
+    let pprof_guard = flamegraph
+        .map(|path| {
+            Ok::<_, anyhow::Error>((
+                pprof::ProfilerGuardBuilder::default()
+                    .frequency(100000)
+                    .blocklist(&["libc", "libgcc", "pthread", "vdso"])
+                    .build()?,
+                path,
+            ))
+        })
+        .transpose()?;
+=======
+    manifest_path: &Path,
+) -> Result<Vec<Crate>> {
+    let pprof_guard = ctx
+        .flamegraph
+        .as_ref()
+        .map(|path| {
+            Ok::<_, anyhow::Error>((
+                pprof::ProfilerGuardBuilder::default()
+                    .frequency(100000)
+                    .blocklist(&["libc", "libgcc", "pthread", "vdso"])
+                    .build()?,
+                path,
+            ))
+        })
+        .transpose()?;
+>>>>>>> f0566d5 (treewide: fix kate)
 
     let mut graph = PackageGraph::lower_from_metadata(metadata);
     let original_package_count = graph.graph.len();
 
     log_progress("Pruning metadata")?;
-    graph.prune(manifest_path.as_ref())?;
+    graph.prune(manifest_path)?;
 
     debug!(
         original_package_count,
@@ -605,7 +634,7 @@ where
 
     log_progress("Building proc macros")?;
     let (proc_macro_dylibs, build_scripts) =
-        build_compile_time_dependencies(manifest_path.as_ref(), &graph.graph)?;
+        build_compile_time_dependencies(ctx, manifest_path, &graph.graph)?;
 
     log_progress("Constructing crate graph")?;
     let crates = graph.lower_to_crates(proc_macro_dylibs, build_scripts);
