@@ -1,5 +1,11 @@
 # cargo subspace
 
+<div align="center">
+
+![A retro-futuristic computer from Star Trek with three waveforms overlaid on grids. The top left reads "TRANSPECTRAL ANALYSIS COMPLETE", and the bottom right reads "SUBSPACE COM WAVE 0118". There some small, illegible text to the left of the wave forms.](subspace.jpg)
+
+</div>
+
 A tool that forces rust-analyzer to lazily index crates in the workspace as you open new files. It
 is useful if you have a very large cargo workspace (think hundreds of crates) and you find that
 rust-analyzer can be slow or laggy as a result.
