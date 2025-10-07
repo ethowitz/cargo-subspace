@@ -577,17 +577,20 @@ fn crates_from_metadata<P>(
 where
     P: AsRef<Path>,
 {
-    let pprof_guard = flamegraph
-        .map(|path| {
-            Ok::<_, anyhow::Error>((
-                pprof::ProfilerGuardBuilder::default()
-                    .frequency(100000)
-                    .blocklist(&["libc", "libgcc", "pthread", "vdso"])
-                    .build()?,
-                path,
-            ))
-        })
-        .transpose()?;
+    #[cfg(not(target_os = "windows"))]
+    let pprof_guard = {
+        flamegraph
+            .map(|path| {
+                Ok::<_, anyhow::Error>((
+                    pprof::ProfilerGuardBuilder::default()
+                        .frequency(100000)
+                        .blocklist(&["libc", "libgcc", "pthread", "vdso"])
+                        .build()?,
+                    path,
+                ))
+            })
+            .transpose()?
+    };
 
     let mut graph = PackageGraph::lower_from_metadata(metadata);
 
@@ -601,6 +604,7 @@ where
     log_progress("Constructing crate graph")?;
     let crates = graph.lower_to_crates(proc_macro_dylibs, build_scripts);
 
+    #[cfg(not(target_os = "windows"))]
     if let Some((guard, path)) = pprof_guard {
         let report = guard.report().build()?;
         let file = File::create(path)?;
