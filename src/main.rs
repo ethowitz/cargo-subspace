@@ -160,7 +160,8 @@ fn discover(ctx: &Context, manifest_path: &Path) -> Result<()> {
 
     log_progress("Fetching metadata")?;
     let mut cmd = MetadataCommand::new();
-    cmd.features(CargoOpt::AllFeatures);
+    cmd.features(CargoOpt::AllFeatures)
+        .manifest_path(manifest_path);
 
     if let Some(cargo_home) = ctx.cargo_home.as_ref() {
         cmd.cargo_path(cargo_home.join("cargo"));
@@ -170,14 +171,16 @@ fn discover(ctx: &Context, manifest_path: &Path) -> Result<()> {
 
     let project = compute_project_json(ctx, metadata, manifest_path)?;
 
-    let workspace_root = ctx
+    let root = ctx
         .cargo()
         .arg("locate-project")
         .arg("--workspace")
+        .arg("--manifest-path")
+        .arg(manifest_path)
         .arg("--message-format")
         .arg("plain")
         .output()?;
-    let buildfile: PathBuf = String::from_utf8(workspace_root.stdout)?.into();
+    let buildfile: PathBuf = String::from_utf8(root.stdout)?.into();
     let output = DiscoverProjectData::Finished {
         buildfile: Utf8PathBuf::from_path_buf(buildfile).map_err(|e| {
             anyhow!(
