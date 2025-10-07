@@ -81,7 +81,10 @@ fn set_up_tracing(args: &CargoSubspace) -> Result<Option<WorkerGuard>> {
 
         Ok(None)
     } else {
+        #[cfg(not(target_os = "windows"))]
         let home: PathBuf = env::var("HOME")?.into();
+        #[cfg(target_os = "windows")]
+        let home: PathBuf = env::var("USERPROFILE")?.into();
         let log_location = args
             .log_location
             .clone()
