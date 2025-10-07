@@ -131,11 +131,11 @@ also be set via lspconfig.
 
 ### Kate
 
-Kate doesn't seem to include the typical cargo home (`~/.cargo/bin`) directory on the `PATH` it
-passes to rust-analyzer, so you'll need to pass the cargo home path to `cargo-subspace` directly,
-and you'll need to provide an absolute path to the `cargo-subspace` binary. In the example below,
-`<CARGO HOME>` should be substituted for an absolute path to the directory in which your cargo
-binaries reside (usually, this is `~/.cargo/bin`).
+Kate doesn't seem to include the typical cargo home (`<YOUR HOME DIRECTORY>/.cargo/bin`) directory
+on the `PATH` it passes to rust-analyzer, so you'll need to pass the cargo home path to
+`cargo-subspace` directly and provide an absolute path to the `cargo-subspace` binary itself.
+In the example below, `<CARGO HOME>` should be substituted for an absolute path to the directory
+in which your cargo binaries reside (usually, this is `<YOUR HOME DIRECTORY>/.cargo/bin`).
 
 These settings should be specified in `Settings --> LSP Client --> User Server Settings`:
 
