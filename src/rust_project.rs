@@ -593,9 +593,15 @@ where
     };
 
     let mut graph = PackageGraph::lower_from_metadata(metadata);
+    let original_package_count = graph.graph.len();
 
     log_progress("Pruning metadata")?;
     graph.prune(manifest_path.as_ref())?;
+
+    debug!(
+        original_package_count,
+        new_package_count = graph.graph.len()
+    );
 
     log_progress("Building proc macros")?;
     let (proc_macro_dylibs, build_scripts) =

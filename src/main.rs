@@ -64,7 +64,7 @@ fn main_inner(args: CargoSubspace) -> Result<()> {
         SubspaceCommand::Clippy { path } => check("clippy", path)?,
     }
 
-    debug!(execution_time = execution_start.elapsed().as_secs_f32());
+    debug!(execution_time_seconds = execution_start.elapsed().as_secs_f32());
 
     Ok(())
 }
