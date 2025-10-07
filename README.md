@@ -17,7 +17,7 @@ rust-analyzer can be slow or laggy as a result.
   - [VSCode](#vscode)
   - [neovim](#neovim)
   - [Kate](#kate)
-- [Troubleshooting/Debugging](#troubleshooting-debugging)
+- [Troubleshooting/Debugging](#troubleshooting/debugging)
 
 ## A note
 
