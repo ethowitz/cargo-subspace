@@ -1,28 +1,27 @@
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 
 use anyhow::Result;
 use cargo_metadata::camino::Utf8PathBuf;
 use cargo_metadata::{Artifact, BuildScript, Message, PackageId};
 
-use crate::log_progress;
 use crate::rust_project::PackageNode;
+use crate::{Context, log_progress};
 
-pub(crate) fn build_compile_time_dependencies<P>(
-    manifest_path: P,
+pub(crate) fn build_compile_time_dependencies(
+    ctx: &Context,
+    manifest_path: &Path,
     names: &HashMap<PackageId, PackageNode>,
 ) -> Result<(
     HashMap<PackageId, Utf8PathBuf>,
     HashMap<PackageId, BuildScript>,
-)>
-where
-    P: AsRef<Path>,
-{
+)> {
     // TODO: check rust version to decide whether to use --compile-time-deps, which allows us to
     // only build proc macros/build scripts during this step instead of building the whole crate
-    let child = Command::new("cargo")
+    let child = ctx
+        .cargo()
         // .arg("+nightly")
         .arg("check")
         // .arg("--compile-time-deps")
@@ -31,7 +30,7 @@ where
         .arg("json")
         .arg("--keep-going")
         .arg("--manifest-path")
-        .arg(manifest_path.as_ref())
+        .arg(manifest_path)
         // .arg("-Zunstable-options")
         // .env("__CARGO_TEST_CHANNEL_OVERRIDE_DO_NOT_USE_THIS", "nightly")
         .stdout(Stdio::piped())

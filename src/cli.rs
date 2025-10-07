@@ -20,6 +20,11 @@ pub struct CargoSubspace {
     #[arg(long)]
     pub log_to_stdout: bool,
 
+    /// The explicit path to the directory containing your cargo binaries. By default,
+    /// `cargo-subspace` will use the binaries on your `PATH`.
+    #[arg(long, env = "CARGO_HOME")]
+    pub cargo_home: Option<PathBuf>,
+
     #[arg(long, hide = true)]
     pub flamegraph: Option<PathBuf>,
 
