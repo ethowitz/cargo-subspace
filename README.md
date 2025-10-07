@@ -10,6 +10,15 @@ A tool that forces rust-analyzer to lazily index crates in the workspace as you 
 is useful if you have a very large cargo workspace (think hundreds of crates) and you find that
 rust-analyzer can be slow or laggy as a result.
 
+- [A note](#a-note)
+- [What the heck is this](#what-the-heck-is-this)
+- [Caveats](#caveats)
+- [Installation](#installation)
+  - [VSCode](#vscode)
+  - [neovim](#neovim)
+  - [Kate](#kate)
+- [Troubleshooting/Debugging](#troubleshootingdebugging)
+
 ## A note
 
 **I want to preface all of this by saying that rust-analyzer is an amazing project, and I am
@@ -68,10 +77,9 @@ Then:
 cargo install --locked cargo-subspace
 ```
 
-## Configuration
-
-This tool is designed to be invoked directly by rust-analyzer. I've tested it with both VSCode and
-neovim, but theoretically, it should work with any editor that has LSP support.
+Next, you need to update the configuration that gets passed to rust-analyzer by your editor (this
+step is editor-specific). I've tested it with VSCode, neovim, and Kate, but theoretically, it
+should work with any editor that has LSP support.
 
 ### VSCode
 
