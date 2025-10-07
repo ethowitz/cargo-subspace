@@ -564,16 +564,12 @@ impl PackageGraph {
 fn crates_from_metadata(
     ctx: &Context,
     metadata: Metadata,
-<<<<<<< HEAD
-    manifest_path: P,
-    flamegraph: Option<PathBuf>,
-) -> Result<Vec<Crate>>
-where
-    P: AsRef<Path>,
-{
+    manifest_path: &Path,
+) -> Result<Vec<Crate>> {
     #[cfg(not(target_os = "windows"))]
     let pprof_guard = {
-        flamegraph
+        ctx.flamegraph
+            .as_ref()
             .map(|path| {
                 Ok::<_, anyhow::Error>((
                     pprof::ProfilerGuardBuilder::default()
@@ -585,41 +581,6 @@ where
             })
             .transpose()?
     };
-||||||| parent of f0566d5 (treewide: fix kate)
-    manifest_path: P,
-    flamegraph: Option<PathBuf>,
-) -> Result<Vec<Crate>>
-where
-    P: AsRef<Path>,
-{
-    let pprof_guard = flamegraph
-        .map(|path| {
-            Ok::<_, anyhow::Error>((
-                pprof::ProfilerGuardBuilder::default()
-                    .frequency(100000)
-                    .blocklist(&["libc", "libgcc", "pthread", "vdso"])
-                    .build()?,
-                path,
-            ))
-        })
-        .transpose()?;
-=======
-    manifest_path: &Path,
-) -> Result<Vec<Crate>> {
-    let pprof_guard = ctx
-        .flamegraph
-        .as_ref()
-        .map(|path| {
-            Ok::<_, anyhow::Error>((
-                pprof::ProfilerGuardBuilder::default()
-                    .frequency(100000)
-                    .blocklist(&["libc", "libgcc", "pthread", "vdso"])
-                    .build()?,
-                path,
-            ))
-        })
-        .transpose()?;
->>>>>>> f0566d5 (treewide: fix kate)
 
     let mut graph = PackageGraph::lower_from_metadata(metadata);
     let original_package_count = graph.graph.len();
