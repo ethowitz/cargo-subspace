@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader};
-use std::path::Path;
 use std::process::Stdio;
 
 use anyhow::Result;
@@ -8,14 +7,15 @@ use cargo_metadata::camino::Utf8PathBuf;
 use cargo_metadata::{Artifact, BuildScript, Message, PackageId};
 
 use crate::rust_project::PackageNode;
+use crate::util::{FilePath, FilePathBuf};
 use crate::{Context, log_progress};
 
 pub(crate) fn build_compile_time_dependencies(
     ctx: &Context,
-    manifest_path: &Path,
+    manifest_path: FilePath<'_>,
     names: &HashMap<PackageId, PackageNode>,
 ) -> Result<(
-    HashMap<PackageId, Utf8PathBuf>,
+    HashMap<PackageId, FilePathBuf>,
     HashMap<PackageId, BuildScript>,
 )> {
     // TODO: check rust version to decide whether to use --compile-time-deps, which allows us to
@@ -56,7 +56,7 @@ pub(crate) fn build_compile_time_dependencies(
                 {
                     log_progress(format!("proc-macro {} built", target.name))?;
 
-                    dylibs.insert(package_id, dylib);
+                    dylibs.insert(package_id, dylib.try_into()?);
                 }
             }
             Message::BuildScriptExecuted(script) => {

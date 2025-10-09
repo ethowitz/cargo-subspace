@@ -1,10 +1,11 @@
 mod cli;
 mod proc_macros;
 mod rust_project;
+mod util;
 
 use std::env;
 use std::fs::{self, File};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::time::Instant;
 
@@ -18,6 +19,7 @@ use tracing::{debug, error};
 use tracing_appender::non_blocking::WorkerGuard;
 
 use crate::rust_project::compute_project_json;
+use crate::util::{FilePath, FilePathBuf};
 use cli::{CargoSubspace, DiscoverArgument, DiscoverProjectData, SubspaceCommand};
 
 const DEFAULT_LOG_LOCATION: &str = ".local/state/cargo-subspace";
@@ -91,11 +93,13 @@ fn main_inner(args: CargoSubspace) -> Result<()> {
         SubspaceCommand::Discover { arg } => match arg {
             DiscoverArgument::Path(path) => {
                 log_progress("Looking for manifest path")?;
-                let manifest_path = find_manifest(&path)?;
+                let manifest_path = find_manifest(path)?;
 
-                discover(&ctx, &manifest_path)?;
+                discover(&ctx, manifest_path.as_file_path())?;
             }
-            DiscoverArgument::Buildfile(manifest_path) => discover(&ctx, &manifest_path)?,
+            DiscoverArgument::Buildfile(manifest_path) => {
+                discover(&ctx, manifest_path.as_file_path())?
+            }
         },
         SubspaceCommand::Check { path } => check(&ctx, "check", path)?,
         SubspaceCommand::Clippy { path } => check(&ctx, "clippy", path)?,
@@ -150,7 +154,7 @@ fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }
 
-fn discover(ctx: &Context, manifest_path: &Path) -> Result<()> {
+fn discover(ctx: &Context, manifest_path: FilePath<'_>) -> Result<()> {
     log_progress("Fetching packages")?;
     ctx.cargo()
         .arg("fetch")
@@ -197,7 +201,7 @@ fn discover(ctx: &Context, manifest_path: &Path) -> Result<()> {
     Ok(())
 }
 
-fn check(ctx: &Context, command: &'static str, file: String) -> Result<()> {
+fn check(ctx: &Context, command: &'static str, file: FilePathBuf) -> Result<()> {
     let manifest = find_manifest(file)?;
 
     let status = ctx
@@ -207,7 +211,7 @@ fn check(ctx: &Context, command: &'static str, file: String) -> Result<()> {
         .arg("--keep-going")
         .arg("--all-targets")
         .arg("--manifest-path")
-        .arg(&manifest)
+        .arg(manifest.as_file_path())
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
         .spawn()?
@@ -244,11 +248,8 @@ where
     Ok(())
 }
 
-fn find_manifest<P>(path: P) -> Result<PathBuf>
-where
-    P: AsRef<Path>,
-{
-    let path = std::path::absolute(path)?;
+fn find_manifest(path: FilePathBuf) -> Result<FilePathBuf> {
+    let path = std::path::absolute(&path)?;
     let Some(parent) = path.parent() else {
         anyhow::bail!("Invalid path: could not get parent");
     };
@@ -260,7 +261,7 @@ where
                 let path = std::path::absolute(item.path())?;
                 debug!(manifest_path = %path.display());
 
-                return Ok(path);
+                return path.try_into();
             }
         }
     }
