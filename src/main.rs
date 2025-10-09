@@ -51,6 +51,7 @@ fn main() -> Result<()> {
 struct Context {
     cargo_home: Option<PathBuf>,
     flamegraph: Option<PathBuf>,
+    disable_color_diagnostics: bool,
 }
 
 impl Context {
@@ -78,6 +79,7 @@ impl From<&CargoSubspace> for Context {
         Context {
             cargo_home: value.cargo_home.clone(),
             flamegraph: value.flamegraph.clone(),
+            disable_color_diagnostics: value.disable_color_diagnostics,
         }
     }
 }
@@ -203,11 +205,16 @@ fn discover(ctx: &Context, manifest_path: FilePath<'_>) -> Result<()> {
 
 fn check(ctx: &Context, command: &'static str, file: FilePathBuf) -> Result<()> {
     let manifest = find_manifest(file)?;
+    let message_format = if ctx.disable_color_diagnostics {
+        "--message-format=json"
+    } else {
+        "--message-format=json-diagnostic-rendered-ansi"
+    };
 
     let status = ctx
         .cargo()
         .arg(command)
-        .arg("--message-format=json")
+        .arg(message_format)
         .arg("--keep-going")
         .arg("--all-targets")
         .arg("--manifest-path")
