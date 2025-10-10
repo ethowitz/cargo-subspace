@@ -1,9 +1,9 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt::Display;
 use std::fs::File;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use cargo_metadata::camino::Utf8PathBuf;
 use cargo_metadata::semver::Version;
 use cargo_metadata::{BuildScript, Edition, Metadata, PackageId};
@@ -11,6 +11,7 @@ use serde::Serialize;
 use tracing::debug;
 
 use crate::proc_macros::build_compile_time_dependencies;
+use crate::util::{FilePath, FilePathBuf};
 use crate::{Context, log_progress};
 
 #[derive(Debug, Clone, Serialize)]
@@ -30,7 +31,7 @@ pub(crate) struct ProjectJson {
     /// $ rustc --print sysroot
     /// /Users/yourname/.rustup/toolchains/stable-x86_64-apple-darwin
     /// ```
-    sysroot: String,
+    sysroot: Utf8PathBuf,
     /// Path to the directory with *source code* of
     /// sysroot crates.
     ///
@@ -49,7 +50,7 @@ pub(crate) struct ProjectJson {
     /// several different "sysroots" in one graph of
     /// crates.
     #[serde(skip_serializing_if = "Option::is_none")]
-    sysroot_src: Option<String>,
+    sysroot_src: Option<Utf8PathBuf>,
     // /// A ProjectJson describing the crates of the sysroot.
     // #[serde(skip_serializing_if = "Option::is_none")]
     // sysroot_project: Option<Box<ProjectJson>>,
@@ -99,7 +100,7 @@ pub(crate) struct Crate {
     /// key for semantically-significant crate names.
     display_name: Option<String>,
     /// Path to the root module of the crate.
-    root_module: PathBuf,
+    root_module: FilePathBuf,
     /// Edition of the crate.
     edition: Edition,
     /// The version of the crate. Used for calculating
@@ -162,7 +163,7 @@ pub(crate) struct Crate {
     /// For proc-macro crates, path to compiled
     /// proc-macro (.so file).
     #[serde(skip_serializing_if = "Option::is_none")]
-    proc_macro_dylib_path: Option<String>,
+    proc_macro_dylib_path: Option<FilePathBuf>,
 
     /// Repository, matching the URL that would be used
     /// in Cargo.toml.
@@ -174,7 +175,7 @@ pub(crate) struct Crate {
     build: Option<BuildInfo>,
 
     #[serde(default)]
-    proc_macro_cwd: Option<PathBuf>,
+    proc_macro_cwd: Option<FilePathBuf>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -289,29 +290,29 @@ impl TargetKind {
     }
 }
 
-pub(crate) fn find_sysroot(ctx: &Context) -> Result<PathBuf> {
-    Ok(
-        String::from_utf8(ctx.rustc().arg("--print").arg("sysroot").output()?.stdout)?
-            .trim()
-            .into(),
-    )
+pub(crate) fn find_sysroot(ctx: &Context) -> Result<Utf8PathBuf> {
+    let p: PathBuf = String::from_utf8(ctx.rustc().arg("--print").arg("sysroot").output()?.stdout)?
+        .trim()
+        .into();
+
+    Utf8PathBuf::from_path_buf(p).map_err(|_| anyhow!("Path contains non-UTF-8 characters"))
 }
 
 pub(crate) fn compute_project_json(
     ctx: &Context,
     metadata: Metadata,
-    manifest_path: &Path,
+    manifest_path: FilePath<'_>,
 ) -> Result<ProjectJson> {
     log_progress("Finding sysroot")?;
     let sysroot = find_sysroot(ctx)?;
-    debug!(sysroot = %sysroot.display());
+    debug!(sysroot = %sysroot);
 
     let sysroot_src = sysroot.join("lib/rustlib/src/rust/library");
     let crates = crates_from_metadata(ctx, metadata, manifest_path)?;
 
     Ok(ProjectJson {
-        sysroot: sysroot.to_string_lossy().to_string(),
-        sysroot_src: Some(sysroot_src.to_string_lossy().to_string()),
+        sysroot,
+        sysroot_src: Some(sysroot_src),
         // TODO: do i need this? buck excludes it...
         // sysroot_project: None,
         // TODO: do i need this? buck excludes it...
@@ -327,7 +328,7 @@ pub(crate) fn compute_project_json(
 pub(crate) struct PackageNode {
     pub(crate) name: String,
     targets: Vec<Target>,
-    manifest_path: Utf8PathBuf,
+    manifest_path: FilePathBuf,
     version: Version,
     is_workspace_member: bool,
     repository: Option<String>,
@@ -346,7 +347,7 @@ pub(crate) struct Target {
     name: String,
     edition: Edition,
     kind: Vec<cargo_metadata::TargetKind>,
-    root_module: Utf8PathBuf,
+    root_module: FilePathBuf,
 }
 
 impl Target {
@@ -362,7 +363,7 @@ struct PackageGraph {
 }
 
 impl PackageGraph {
-    fn lower_from_metadata(metadata: Metadata) -> Self {
+    fn lower_from_metadata(metadata: Metadata) -> Result<Self> {
         let mut graph = HashMap::new();
         let workspace_members: HashSet<&PackageId> =
             HashSet::from_iter(metadata.workspace_members.iter());
@@ -387,22 +388,32 @@ impl PackageGraph {
             }
         }
 
-        for package in metadata.packages {
+        for mut package in metadata.packages {
+            // If the package is not a member of the workspace, don't include any test, example, or
+            // bench targets.
+            if !workspace_members.contains(&package.id) {
+                package
+                    .targets
+                    .retain(|t| !t.is_test() && !t.is_example() && !t.is_bench());
+            }
+
             let targets = package
                 .targets
                 .into_iter()
-                .map(|t| Target {
-                    name: t.name,
-                    edition: t.edition,
-                    kind: t.kind,
-                    root_module: t.src_path,
+                .map(|t| {
+                    Ok(Target {
+                        name: t.name,
+                        edition: t.edition,
+                        kind: t.kind,
+                        root_module: t.src_path.try_into()?,
+                    })
                 })
-                .collect();
+                .collect::<Result<Vec<_>>>()?;
 
             let node = PackageNode {
                 name: package.name.to_string(),
                 targets,
-                manifest_path: package.manifest_path,
+                manifest_path: package.manifest_path.try_into()?,
                 version: package.version,
                 is_workspace_member: workspace_members.contains(&package.id),
                 repository: package.repository,
@@ -418,20 +429,18 @@ impl PackageGraph {
             graph.insert(package.id, node);
         }
 
-        Self { graph }
+        Ok(Self { graph })
     }
 
     /// Prunes the graph such that the remaining nodes consist only of:
     /// 1. The package with the given manifest path; and
     /// 2. The dependencies of that package
-    fn prune<P>(&mut self, manifest_path: P) -> Result<()>
-    where
-        P: AsRef<Path>,
-    {
+    fn prune(&mut self, manifest_path: FilePath<'_>) -> Result<()> {
+        let abs = std::path::absolute(manifest_path.as_std_path())?;
         let Some((id, _)) = self
             .graph
             .iter()
-            .find(|(_, node)| node.manifest_path == manifest_path.as_ref())
+            .find(|(_, node)| node.manifest_path.as_std_path() == abs)
         else {
             anyhow::bail!(
                 "Could not find workspace member with manifest path {}",
@@ -464,9 +473,9 @@ impl PackageGraph {
     /// Lowers the graph to a vector of crates
     fn lower_to_crates(
         self,
-        proc_macro_dylibs: HashMap<PackageId, Utf8PathBuf>,
+        proc_macro_dylibs: HashMap<PackageId, FilePathBuf>,
         build_scripts: HashMap<PackageId, BuildScript>,
-    ) -> Vec<Crate> {
+    ) -> Result<Vec<Crate>> {
         let iter = self.graph.into_iter().flat_map(|(id, package)| {
             // TODO: clones
             package
@@ -481,19 +490,6 @@ impl PackageGraph {
         let mut indexes: HashMap<PackageId, usize> = HashMap::new();
 
         for (id, package, target) in iter {
-            // Exclude any test/bench/example targets for non-workspace members
-            if [
-                cargo_metadata::TargetKind::Test,
-                cargo_metadata::TargetKind::Bench,
-                cargo_metadata::TargetKind::Example,
-            ]
-            .iter()
-            .any(|k| target.kind.contains(k))
-                && !package.is_workspace_member
-            {
-                continue;
-            }
-
             let mut env = HashMap::new();
             let mut include_dirs = vec![package.manifest_path.parent().unwrap().to_string()];
             if let Some(script) = build_scripts.get(&id) {
@@ -514,7 +510,7 @@ impl PackageGraph {
 
             crates.push(Crate {
                 display_name: Some(package.name.to_string().replace('-', "_")),
-                root_module: target.root_module.clone().into_std_path_buf(),
+                root_module: target.root_module.clone(),
                 edition: target.edition,
                 version: Some(package.version.to_string()),
                 deps: vec![],
@@ -526,7 +522,7 @@ impl PackageGraph {
                     build_file: package.manifest_path.to_string(),
                     target_kind,
                 }),
-                proc_macro_dylib_path: proc_macro_dylibs.get(&id).cloned().map(|path| path.into()),
+                proc_macro_dylib_path: proc_macro_dylibs.get(&id).cloned(),
                 source: Some(CrateSource {
                     include_dirs,
                     exclude_dirs: vec![".git".into(), "target".into()],
@@ -540,7 +536,11 @@ impl PackageGraph {
                     .collect(),
                 target: None,
                 env,
-                proc_macro_cwd: package.manifest_path.parent().map(|a| a.into()),
+                proc_macro_cwd: package
+                    .manifest_path
+                    .as_file_path()
+                    .parent()
+                    .map(|a| a.into()),
             });
         }
 
@@ -557,14 +557,14 @@ impl PackageGraph {
             c.deps.sort_by_key(|dep| dep.crate_index);
         }
 
-        crates
+        Ok(crates)
     }
 }
 
 fn crates_from_metadata(
     ctx: &Context,
     metadata: Metadata,
-    manifest_path: &Path,
+    manifest_path: FilePath<'_>,
 ) -> Result<Vec<Crate>> {
     #[cfg(not(target_os = "windows"))]
     let pprof_guard = {
@@ -582,7 +582,7 @@ fn crates_from_metadata(
             .transpose()?
     };
 
-    let mut graph = PackageGraph::lower_from_metadata(metadata);
+    let mut graph = PackageGraph::lower_from_metadata(metadata)?;
     let original_package_count = graph.graph.len();
 
     log_progress("Pruning metadata")?;
@@ -598,7 +598,7 @@ fn crates_from_metadata(
         build_compile_time_dependencies(ctx, manifest_path, &graph.graph)?;
 
     log_progress("Constructing crate graph")?;
-    let crates = graph.lower_to_crates(proc_macro_dylibs, build_scripts);
+    let crates = graph.lower_to_crates(proc_macro_dylibs, build_scripts)?;
 
     #[cfg(not(target_os = "windows"))]
     if let Some((guard, path)) = pprof_guard {

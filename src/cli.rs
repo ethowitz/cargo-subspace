@@ -6,7 +6,7 @@ use cargo_metadata::camino::Utf8PathBuf;
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 
-use crate::ProjectJson;
+use crate::{ProjectJson, util::FilePathBuf};
 
 #[derive(PartialEq, Clone, Debug, Parser)]
 pub struct CargoSubspace {
@@ -46,18 +46,18 @@ pub enum SubspaceCommand {
         arg: DiscoverArgument,
     },
     Check {
-        path: String,
+        path: FilePathBuf,
     },
     Clippy {
-        path: String,
+        path: FilePathBuf,
     },
 }
 
 #[derive(PartialEq, Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum DiscoverArgument {
-    Path(PathBuf),
-    Buildfile(PathBuf),
+    Path(FilePathBuf),
+    Buildfile(FilePathBuf),
 }
 
 impl FromStr for DiscoverArgument {
