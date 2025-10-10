@@ -44,6 +44,9 @@ pub enum SubspaceCommand {
     Version,
     Discover {
         arg: DiscoverArgument,
+
+        #[arg(long, default_value_t = false)]
+        graphviz: bool,
     },
     Check {
         path: FilePathBuf,

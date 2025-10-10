@@ -1,5 +1,5 @@
 use std::collections::{HashMap, HashSet};
-use std::fmt::Display;
+use std::fmt::{self, Display};
 use std::fs::File;
 use std::path::PathBuf;
 
@@ -7,6 +7,9 @@ use anyhow::{Result, anyhow};
 use cargo_metadata::camino::Utf8PathBuf;
 use cargo_metadata::semver::Version;
 use cargo_metadata::{BuildScript, Edition, Metadata, PackageId};
+use petgraph::dot::Dot;
+use petgraph::graph::NodeIndex;
+use petgraph::prelude::StableDiGraph;
 use serde::Serialize;
 use tracing::debug;
 
@@ -146,6 +149,8 @@ pub(crate) struct Crate {
     /// The set of cfgs activated for a given crate, like
     /// `["unix", "feature=\"foo\"", "feature=\"bar\""]`.
     #[serde(skip_serializing_if = "Vec::is_empty")]
+    // TODO: are any/all etc. supported in these cfgs? Answer: no
+    // TODO: get target from metadata and set as cfg and then test
     cfg: Vec<String>,
     /// Target tuple for this Crate.
     ///
@@ -298,6 +303,16 @@ pub(crate) fn find_sysroot(ctx: &Context) -> Result<Utf8PathBuf> {
     Utf8PathBuf::from_path_buf(p).map_err(|_| anyhow!("Path contains non-UTF-8 characters"))
 }
 
+pub(crate) fn graphviz(metadata: Metadata, manifest_path: FilePath<'_>) -> Result<String> {
+    let mut graph = PackageGraph::lower_from_metadata(metadata)?;
+
+    log_progress("Pruning metadata")?;
+    graph.prune(manifest_path)?;
+
+    let g = graph.into_petgraph();
+    Ok(format!("{:?}", Dot::new(&g)))
+}
+
 pub(crate) fn compute_project_json(
     ctx: &Context,
     metadata: Metadata,
@@ -333,6 +348,7 @@ pub(crate) struct PackageNode {
     is_workspace_member: bool,
     repository: Option<String>,
     features: Vec<String>,
+    // other_cfgs: Vec<String>,
     dependencies: Vec<Dependency>,
 }
 
@@ -362,7 +378,58 @@ struct PackageGraph {
     graph: HashMap<PackageId, PackageNode>,
 }
 
+struct Vertex {
+    name: String,
+    is_workspace_member: bool,
+    version: Version,
+}
+
+impl fmt::Debug for Vertex {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}@{}", self.name, self.version)?;
+
+        if self.is_workspace_member {
+            write!(f, " (workspace)")?;
+        }
+
+        Ok(())
+    }
+}
+
+// fn graph_from_metadata(ctx: &Context, metadata: Metadata) -> StableDiGraph<PackageNode, NodeDep>
+
 impl PackageGraph {
+    fn into_petgraph(self) -> StableDiGraph<Vertex, ()> {
+        let mut pkg_id_to_graph_index: HashMap<PackageId, NodeIndex<u32>> = HashMap::new();
+        let mut g = StableDiGraph::with_capacity(
+            self.graph.len(),
+            self.graph
+                .values()
+                .map(|node| node.dependencies.len())
+                .sum(),
+        );
+
+        for (id, pkg) in self.graph.iter() {
+            let index = g.add_node(Vertex {
+                name: pkg.name.clone(),
+                is_workspace_member: pkg.is_workspace_member,
+                version: pkg.version.clone(),
+            });
+            pkg_id_to_graph_index.insert(id.clone(), index);
+        }
+
+        for (id, pkg) in self.graph.into_iter() {
+            let src = *pkg_id_to_graph_index.get(&id).unwrap();
+            for dep in pkg.dependencies {
+                let dest = *pkg_id_to_graph_index.get(&dep.id).unwrap();
+
+                g.add_edge(src, dest, ());
+            }
+        }
+
+        g
+    }
+
     fn lower_from_metadata(metadata: Metadata) -> Result<Self> {
         let mut graph = HashMap::new();
         let workspace_members: HashSet<&PackageId> =

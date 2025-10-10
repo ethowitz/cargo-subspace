@@ -90,15 +90,15 @@ fn main_inner(args: CargoSubspace) -> Result<()> {
         SubspaceCommand::Version => {
             println!("{}", version());
         }
-        SubspaceCommand::Discover { arg } => match arg {
+        SubspaceCommand::Discover { arg, graphviz } => match arg {
             DiscoverArgument::Path(path) => {
                 log_progress("Looking for manifest path")?;
                 let manifest_path = find_manifest(path)?;
 
-                discover(&ctx, manifest_path.as_file_path())?;
+                discover(&ctx, manifest_path.as_file_path(), graphviz)?;
             }
             DiscoverArgument::Buildfile(manifest_path) => {
-                discover(&ctx, manifest_path.as_file_path())?
+                discover(&ctx, manifest_path.as_file_path(), graphviz)?
             }
         },
         SubspaceCommand::Check {
@@ -160,7 +160,11 @@ fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }
 
-fn discover(ctx: &Context, manifest_path: FilePath<'_>) -> Result<()> {
+fn discover(ctx: &Context, manifest_path: FilePath<'_>, graphviz: bool) -> Result<()> {
+    let rustc_info = String::from_utf8(ctx.rustc().arg("-vV").output()?.stdout)?;
+    let target_triple = rustc_info
+        .lines()
+        .find_map(|line| line.strip_prefix("host: "));
     log_progress("Fetching metadata")?;
     let mut cmd = MetadataCommand::new();
     cmd.features(CargoOpt::AllFeatures)
@@ -170,32 +174,41 @@ fn discover(ctx: &Context, manifest_path: FilePath<'_>) -> Result<()> {
         cmd.cargo_path(cargo_home.join("cargo"));
     }
 
+    if let Some(target_triple) = target_triple {
+        cmd.other_options(["--filter-platform".into(), target_triple.into()]);
+    }
+
     let metadata = cmd.exec()?;
 
-    let project = compute_project_json(ctx, metadata, manifest_path)?;
+    if graphviz {
+        let s = crate::rust_project::graphviz(metadata, manifest_path)?;
+        println!("{s}");
+    } else {
+        let project = compute_project_json(ctx, metadata, manifest_path)?;
 
-    let root = ctx
-        .cargo()
-        .arg("locate-project")
-        .arg("--workspace")
-        .arg("--manifest-path")
-        .arg(manifest_path)
-        .arg("--message-format")
-        .arg("plain")
-        .output()?;
-    let buildfile: PathBuf = String::from_utf8(root.stdout)?.trim().into();
-    let output = DiscoverProjectData::Finished {
-        buildfile: Utf8PathBuf::from_path_buf(buildfile).map_err(|e| {
-            anyhow!(
-                "Manifest path `{}` contains non-UTF-8 characters",
-                e.display()
-            )
-        })?,
-        project,
-    };
-    let json = serde_json::to_string(&output)?;
+        let root = ctx
+            .cargo()
+            .arg("locate-project")
+            .arg("--workspace")
+            .arg("--manifest-path")
+            .arg(manifest_path)
+            .arg("--message-format")
+            .arg("plain")
+            .output()?;
+        let buildfile: PathBuf = String::from_utf8(root.stdout)?.trim().into();
+        let output = DiscoverProjectData::Finished {
+            buildfile: Utf8PathBuf::from_path_buf(buildfile).map_err(|e| {
+                anyhow!(
+                    "Manifest path `{}` contains non-UTF-8 characters",
+                    e.display()
+                )
+            })?,
+            project,
+        };
+        let json = serde_json::to_string(&output)?;
 
-    println!("{json}");
+        println!("{json}");
+    }
 
     Ok(())
 }
