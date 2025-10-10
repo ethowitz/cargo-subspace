@@ -29,6 +29,7 @@ pub(crate) fn build_compile_time_dependencies(
         .arg("--message-format")
         .arg("json")
         .arg("--keep-going")
+        .arg("--all-targets")
         .arg("--manifest-path")
         .arg(manifest_path)
         // .arg("-Zunstable-options")
