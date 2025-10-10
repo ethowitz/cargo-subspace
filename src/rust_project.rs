@@ -436,10 +436,11 @@ impl PackageGraph {
     /// 1. The package with the given manifest path; and
     /// 2. The dependencies of that package
     fn prune(&mut self, manifest_path: FilePath<'_>) -> Result<()> {
+        let abs = std::path::absolute(manifest_path.as_std_path())?;
         let Some((id, _)) = self
             .graph
             .iter()
-            .find(|(_, node)| node.manifest_path.as_file_path() == manifest_path)
+            .find(|(_, node)| node.manifest_path.as_std_path() == abs)
         else {
             anyhow::bail!(
                 "Could not find workspace member with manifest path {}",
