@@ -161,13 +161,6 @@ fn version() -> &'static str {
 }
 
 fn discover(ctx: &Context, manifest_path: FilePath<'_>) -> Result<()> {
-    log_progress("Fetching packages")?;
-    ctx.cargo()
-        .arg("fetch")
-        .arg("--manifest-path")
-        .arg(manifest_path.as_os_str())
-        .output()?;
-
     log_progress("Fetching metadata")?;
     let mut cmd = MetadataCommand::new();
     cmd.features(CargoOpt::AllFeatures)
