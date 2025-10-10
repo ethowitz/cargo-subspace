@@ -79,7 +79,16 @@ impl From<&CargoSubspace> for Context {
         Context {
             cargo_home: value.cargo_home.clone(),
             flamegraph: value.flamegraph.clone(),
-            disable_color_diagnostics: value.disable_color_diagnostics,
+            disable_color_diagnostics: matches!(
+                value.command,
+                SubspaceCommand::Clippy {
+                    disable_color_diagnostics: true,
+                    ..
+                } | SubspaceCommand::Check {
+                    disable_color_diagnostics: true,
+                    ..
+                }
+            ),
         }
     }
 }
@@ -103,8 +112,8 @@ fn main_inner(args: CargoSubspace) -> Result<()> {
                 discover(&ctx, manifest_path.as_file_path())?
             }
         },
-        SubspaceCommand::Check { path } => check(&ctx, "check", path)?,
-        SubspaceCommand::Clippy { path } => check(&ctx, "clippy", path)?,
+        SubspaceCommand::Check { path, .. } => check(&ctx, "check", path)?,
+        SubspaceCommand::Clippy { path, .. } => check(&ctx, "clippy", path)?,
     }
 
     debug!(execution_time_seconds = execution_start.elapsed().as_secs_f32());

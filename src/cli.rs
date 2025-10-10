@@ -28,11 +28,6 @@ pub struct CargoSubspace {
     #[arg(long, hide = true)]
     pub flamegraph: Option<PathBuf>,
 
-    /// Prevents `cargo-subspace check` from emitting ANSI color codes in diagnostic output. Useful
-    /// if your editor doesn't correctly render ANSI color codes.
-    #[arg(long)]
-    pub disable_color_diagnostics: bool,
-
     /// The location where log files will be stored.
     ///
     /// Default: $HOME/.local/state/cargo-subspace/cargo-subspace.log
@@ -52,9 +47,19 @@ pub enum SubspaceCommand {
     },
     Check {
         path: FilePathBuf,
+
+        /// Disables the emission of ANSI color codes in diagnostic output. Useful if your editor
+        /// doesn't correctly render ANSI color codes.
+        #[arg(long)]
+        disable_color_diagnostics: bool,
     },
     Clippy {
         path: FilePathBuf,
+
+        /// Disables the emission of ANSI color codes in diagnostic output. Useful if your editor
+        /// doesn't correctly render ANSI color codes.
+        #[arg(long)]
+        disable_color_diagnostics: bool,
     },
 }
 
