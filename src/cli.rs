@@ -47,9 +47,19 @@ pub enum SubspaceCommand {
     },
     Check {
         path: FilePathBuf,
+
+        /// Disables the emission of ANSI color codes in diagnostic output. Useful if your editor
+        /// doesn't correctly render ANSI color codes.
+        #[arg(long)]
+        disable_color_diagnostics: bool,
     },
     Clippy {
         path: FilePathBuf,
+
+        /// Disables the emission of ANSI color codes in diagnostic output. Useful if your editor
+        /// doesn't correctly render ANSI color codes.
+        #[arg(long)]
+        disable_color_diagnostics: bool,
     },
 }
 

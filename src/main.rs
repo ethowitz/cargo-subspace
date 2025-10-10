@@ -101,8 +101,14 @@ fn main_inner(args: CargoSubspace) -> Result<()> {
                 discover(&ctx, manifest_path.as_file_path())?
             }
         },
-        SubspaceCommand::Check { path } => check(&ctx, "check", path)?,
-        SubspaceCommand::Clippy { path } => check(&ctx, "clippy", path)?,
+        SubspaceCommand::Check {
+            path,
+            disable_color_diagnostics,
+        } => check(&ctx, "check", path, disable_color_diagnostics)?,
+        SubspaceCommand::Clippy {
+            path,
+            disable_color_diagnostics,
+        } => check(&ctx, "clippy", path, disable_color_diagnostics)?,
     }
 
     debug!(execution_time_seconds = execution_start.elapsed().as_secs_f32());
@@ -201,13 +207,23 @@ fn discover(ctx: &Context, manifest_path: FilePath<'_>) -> Result<()> {
     Ok(())
 }
 
-fn check(ctx: &Context, command: &'static str, file: FilePathBuf) -> Result<()> {
+fn check(
+    ctx: &Context,
+    command: &'static str,
+    file: FilePathBuf,
+    disable_color_diagnostics: bool,
+) -> Result<()> {
     let manifest = find_manifest(file)?;
+    let message_format = if disable_color_diagnostics {
+        "--message-format=json"
+    } else {
+        "--message-format=json-diagnostic-rendered-ansi"
+    };
 
     let status = ctx
         .cargo()
         .arg(command)
-        .arg("--message-format=json")
+        .arg(message_format)
         .arg("--keep-going")
         .arg("--all-targets")
         .arg("--manifest-path")
