@@ -184,7 +184,7 @@ fn discover(ctx: &Context, manifest_path: FilePath<'_>) -> Result<()> {
         .arg("--message-format")
         .arg("plain")
         .output()?;
-    let buildfile: PathBuf = String::from_utf8(root.stdout)?.into();
+    let buildfile: PathBuf = String::from_utf8(root.stdout)?.trim().into();
     let output = DiscoverProjectData::Finished {
         buildfile: Utf8PathBuf::from_path_buf(buildfile).map_err(|e| {
             anyhow!(
