@@ -391,8 +391,6 @@ impl PackageGraph {
         for mut package in metadata.packages {
             // If the package is not a member of the workspace, don't include any test, example, or
             // bench targets.
-            // TODO: It seems like we should be choosing targets based on input from
-            // cargo-metadata?
             if !workspace_members.contains(&package.id) {
                 package
                     .targets
