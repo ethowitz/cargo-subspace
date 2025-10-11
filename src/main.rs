@@ -274,9 +274,9 @@ fn check(ctx: &Context, command: &'static str, args: CheckArgs) -> Result<()> {
         cmd.arg(arg);
     }
 
-    let output = cmd.spawn()?.wait_with_output()?;
+    let status = cmd.spawn()?.wait()?;
 
-    if output.status.success() {
+    if status.success() {
         Ok(())
     } else {
         Err(anyhow!("Failed to run check"))
