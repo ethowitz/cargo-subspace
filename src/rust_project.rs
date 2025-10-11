@@ -300,7 +300,7 @@ pub(crate) fn find_sysroot(ctx: &Context) -> Result<Utf8PathBuf> {
 
 pub(crate) fn compute_project_json(
     ctx: &Context,
-    discover_args: DiscoverArgs,
+    #[allow(unused)] discover_args: DiscoverArgs,
     metadata: Metadata,
     manifest_path: FilePath<'_>,
 ) -> Result<ProjectJson> {
