@@ -18,7 +18,7 @@ use tracing::level_filters::LevelFilter;
 use tracing::{debug, error};
 use tracing_appender::non_blocking::WorkerGuard;
 
-use crate::cli::CheckArgs;
+use crate::cli::{CheckArgs, DiscoverArgs, FeatureArgs};
 use crate::rust_project::compute_project_json;
 use crate::util::{FilePath, FilePathBuf};
 use cli::{CargoSubspace, DiscoverArgument, DiscoverProjectData, SubspaceCommand};
@@ -51,7 +51,6 @@ fn main() -> Result<()> {
 
 struct Context {
     cargo_home: Option<PathBuf>,
-    flamegraph: Option<PathBuf>,
 }
 
 impl Context {
@@ -78,7 +77,6 @@ impl From<&CargoSubspace> for Context {
     fn from(value: &CargoSubspace) -> Self {
         Context {
             cargo_home: value.cargo_home.clone(),
-            flamegraph: value.flamegraph.clone(),
         }
     }
 }
@@ -91,15 +89,15 @@ fn main_inner(args: CargoSubspace) -> Result<()> {
         SubspaceCommand::Version => {
             println!("{}", version());
         }
-        SubspaceCommand::Discover { arg } => match arg {
+        SubspaceCommand::Discover { discover_args, arg } => match arg {
             DiscoverArgument::Path(path) => {
                 log_progress("Looking for manifest path")?;
                 let manifest_path = find_manifest(path)?;
 
-                discover(&ctx, manifest_path.as_file_path())?;
+                discover(&ctx, discover_args, manifest_path.as_file_path())?;
             }
             DiscoverArgument::Buildfile(manifest_path) => {
-                discover(&ctx, manifest_path.as_file_path())?
+                discover(&ctx, discover_args, manifest_path.as_file_path())?
             }
         },
         SubspaceCommand::Check { args } => check(&ctx, "check", args)?,
@@ -155,7 +153,7 @@ fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }
 
-fn discover(ctx: &Context, manifest_path: FilePath<'_>) -> Result<()> {
+fn discover(ctx: &Context, discover_args: DiscoverArgs, manifest_path: FilePath<'_>) -> Result<()> {
     let rustc_info = String::from_utf8(ctx.rustc().arg("-vV").output()?.stdout)?;
     let target_triple = rustc_info
         .lines()
@@ -172,8 +170,28 @@ fn discover(ctx: &Context, manifest_path: FilePath<'_>) -> Result<()> {
         cmd.other_options(["--filter-platform".into(), target_triple.into()]);
     }
 
+    match discover_args.feature_args {
+        FeatureArgs {
+            all_features: true,
+            no_default_features: false,
+        } => {
+            cmd.features(cargo_metadata::CargoOpt::AllFeatures);
+        }
+        FeatureArgs {
+            all_features: false,
+            no_default_features: true,
+        } => {
+            cmd.features(cargo_metadata::CargoOpt::NoDefaultFeatures);
+        }
+        FeatureArgs {
+            all_features: false,
+            no_default_features: false,
+        } => (),
+        _ => unreachable!("prevented by clap's conflicts_with_all"),
+    }
+
     let metadata = cmd.exec()?;
-    let project = compute_project_json(ctx, metadata, manifest_path)?;
+    let project = compute_project_json(ctx, discover_args, metadata, manifest_path)?;
 
     let root = ctx
         .cargo()
