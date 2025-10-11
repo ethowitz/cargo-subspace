@@ -10,6 +10,7 @@ use cargo_metadata::{BuildScript, Edition, Metadata, PackageId};
 use serde::Serialize;
 use tracing::debug;
 
+use crate::cli::DiscoverArgs;
 use crate::proc_macros::build_compile_time_dependencies;
 use crate::util::{FilePath, FilePathBuf};
 use crate::{Context, log_progress};
@@ -300,6 +301,7 @@ pub(crate) fn find_sysroot(ctx: &Context) -> Result<Utf8PathBuf> {
 
 pub(crate) fn compute_project_json(
     ctx: &Context,
+    discover_args: DiscoverArgs,
     metadata: Metadata,
     manifest_path: FilePath<'_>,
 ) -> Result<ProjectJson> {
@@ -308,7 +310,7 @@ pub(crate) fn compute_project_json(
     debug!(sysroot = %sysroot);
 
     let sysroot_src = sysroot.join("lib/rustlib/src/rust/library");
-    let crates = crates_from_metadata(ctx, metadata, manifest_path)?;
+    let crates = crates_from_metadata(ctx, discover_args, metadata, manifest_path)?;
 
     Ok(ProjectJson {
         sysroot,
@@ -563,12 +565,14 @@ impl PackageGraph {
 
 fn crates_from_metadata(
     ctx: &Context,
+    discover_args: DiscoverArgs,
     metadata: Metadata,
     manifest_path: FilePath<'_>,
 ) -> Result<Vec<Crate>> {
     #[cfg(not(target_os = "windows"))]
     let pprof_guard = {
-        ctx.flamegraph
+        discover_args
+            .flamegraph
             .as_ref()
             .map(|path| {
                 Ok::<_, anyhow::Error>((
