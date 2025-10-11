@@ -37,11 +37,17 @@ pub struct CargoSubspace {
 
 #[derive(PartialEq, Clone, Debug, Parser)]
 pub struct FeatureArgs {
-    /// Activate all features.
+    /// Activate all features in the workspace.
+    ///
+    /// Note that this flag applies to the whole workspace, not just the crate you're currently
+    /// working on.
     #[arg(long, conflicts_with = "no_default_features")]
     pub all_features: bool,
 
     /// Don't include default features during the workspace discovery process.
+    ///
+    /// Note that this flag applies to the whole workspace, not just the crate you're currently
+    /// working on.
     #[arg(long, conflicts_with = "all_features")]
     pub no_default_features: bool,
 }
