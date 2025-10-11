@@ -9,7 +9,16 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
+  rustfmt:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: 🏗️ Check formatting
+      run: cargo fmt --all --check
+
+  clippy:
     runs-on: ubuntu-latest
 
     steps:
@@ -17,6 +26,12 @@ jobs:
 
     - name: 📎 Clippy
       run: cargo clippy --locked -- -D warnings
+    
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
 
     - name: 🧪 Run tests
       run: cargo test --locked
