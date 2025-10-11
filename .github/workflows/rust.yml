@@ -1,0 +1,40 @@
+name: ci
+on:
+  pull_request:
+  push:
+    branches:
+    - main
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  rustfmt:
+    name: "📋 Check formatting"
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: "📋 Check formatting"
+      run: cargo fmt --all --check
+
+  clippy:
+    name: 📎 Clippy
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: 📎 Clippy
+      run: cargo clippy --locked -- -D warnings
+    
+  test:
+    name: 🧪 Run tests
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: 🧪 Run tests
+      run: cargo test --locked
