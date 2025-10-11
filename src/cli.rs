@@ -60,7 +60,7 @@ pub struct CheckArgs {
     /// The path to a Rust source file.
     ///
     /// `cargo-subspace` will find the manifest path of the source file and run `cargo check` with
-    /// `--manifest-path` to limit the checks to that file's crate (and it's dependencies) only.
+    /// `--manifest-path` to limit the checks to that file's crate (and its dependencies) only.
     pub path: FilePathBuf,
 
     /// Disables the emission of ANSI color codes in diagnostic output. Useful if your editor
