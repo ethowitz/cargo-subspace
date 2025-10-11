@@ -158,8 +158,7 @@ fn version() -> &'static str {
 fn discover(ctx: &Context, manifest_path: FilePath<'_>) -> Result<()> {
     log_progress("Fetching metadata")?;
     let mut cmd = MetadataCommand::new();
-    cmd.features(CargoOpt::AllFeatures)
-        .manifest_path(manifest_path);
+    cmd.manifest_path(manifest_path);
 
     if let Some(cargo_home) = ctx.cargo_home.as_ref() {
         cmd.cargo_path(cargo_home.join("cargo"));
