@@ -1,4 +1,4 @@
-name: Rust
+name: 🦀 Rust
 
 on:
   push:
@@ -17,8 +17,8 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Clippy
+    - name: 📎 Clippy
       run: cargo clippy --locked -- -D warnings
 
-    - name: Run tests
+    - name: 🧪 Run tests
       run: cargo test --locked
