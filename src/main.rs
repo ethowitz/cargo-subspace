@@ -10,8 +10,8 @@ use std::process::{Command, Stdio};
 use std::time::Instant;
 
 use anyhow::{Result, anyhow};
+use cargo_metadata::MetadataCommand;
 use cargo_metadata::camino::Utf8PathBuf;
-use cargo_metadata::{CargoOpt, MetadataCommand};
 use clap::Parser;
 use rust_project::ProjectJson;
 use tracing::level_filters::LevelFilter;
@@ -156,6 +156,10 @@ fn version() -> &'static str {
 }
 
 fn discover(ctx: &Context, manifest_path: FilePath<'_>) -> Result<()> {
+    let rustc_info = String::from_utf8(ctx.rustc().arg("-vV").output()?.stdout)?;
+    let target_triple = rustc_info
+        .lines()
+        .find_map(|line| line.strip_prefix("host: "));
     log_progress("Fetching metadata")?;
     let mut cmd = MetadataCommand::new();
     cmd.manifest_path(manifest_path);
@@ -164,8 +168,11 @@ fn discover(ctx: &Context, manifest_path: FilePath<'_>) -> Result<()> {
         cmd.cargo_path(cargo_home.join("cargo"));
     }
 
-    let metadata = cmd.exec()?;
+    if let Some(target_triple) = target_triple {
+        cmd.other_options(["--filter-platform".into(), target_triple.into()]);
+    }
 
+    let metadata = cmd.exec()?;
     let project = compute_project_json(ctx, metadata, manifest_path)?;
 
     let root = ctx
