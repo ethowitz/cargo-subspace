@@ -46,21 +46,33 @@ pub enum SubspaceCommand {
         arg: DiscoverArgument,
     },
     Check {
-        path: FilePathBuf,
-
-        /// Disables the emission of ANSI color codes in diagnostic output. Useful if your editor
-        /// doesn't correctly render ANSI color codes.
-        #[arg(long)]
-        disable_color_diagnostics: bool,
+        #[command(flatten)]
+        args: CheckArgs,
     },
     Clippy {
-        path: FilePathBuf,
-
-        /// Disables the emission of ANSI color codes in diagnostic output. Useful if your editor
-        /// doesn't correctly render ANSI color codes.
-        #[arg(long)]
-        disable_color_diagnostics: bool,
+        #[command(flatten)]
+        args: CheckArgs,
     },
+}
+
+#[derive(PartialEq, Clone, Debug, Parser)]
+pub struct CheckArgs {
+    /// The path to a Rust source file.
+    ///
+    /// `cargo-subspace` will find the manifest path of the source file and run `cargo check` with
+    /// `--manifest-path` to limit the checks to that file's crate (and it's dependencies) only.
+    pub path: FilePathBuf,
+
+    /// Disables the emission of ANSI color codes in diagnostic output. Useful if your editor
+    /// doesn't correctly render ANSI color codes.
+    #[arg(long)]
+    pub disable_color_diagnostics: bool,
+
+    /// Extra arguments to be passed through, unchanged, to `cargo check`.
+    ///
+    /// Example: `cargo-subspace check "/path/to/file.rs" -- --target-dir=/path/to/target`
+    #[clap(last = true, num_args = 0..)]
+    pub passthrough_args: Vec<String>,
 }
 
 #[derive(PartialEq, Clone, Debug, Deserialize)]

@@ -18,6 +18,7 @@ use tracing::level_filters::LevelFilter;
 use tracing::{debug, error};
 use tracing_appender::non_blocking::WorkerGuard;
 
+use crate::cli::CheckArgs;
 use crate::rust_project::compute_project_json;
 use crate::util::{FilePath, FilePathBuf};
 use cli::{CargoSubspace, DiscoverArgument, DiscoverProjectData, SubspaceCommand};
@@ -101,14 +102,8 @@ fn main_inner(args: CargoSubspace) -> Result<()> {
                 discover(&ctx, manifest_path.as_file_path())?
             }
         },
-        SubspaceCommand::Check {
-            path,
-            disable_color_diagnostics,
-        } => check(&ctx, "check", path, disable_color_diagnostics)?,
-        SubspaceCommand::Clippy {
-            path,
-            disable_color_diagnostics,
-        } => check(&ctx, "clippy", path, disable_color_diagnostics)?,
+        SubspaceCommand::Check { args } => check(&ctx, "check", args)?,
+        SubspaceCommand::Clippy { args } => check(&ctx, "clippy", args)?,
     }
 
     debug!(execution_time_seconds = execution_start.elapsed().as_secs_f32());
@@ -200,31 +195,30 @@ fn discover(ctx: &Context, manifest_path: FilePath<'_>) -> Result<()> {
     Ok(())
 }
 
-fn check(
-    ctx: &Context,
-    command: &'static str,
-    file: FilePathBuf,
-    disable_color_diagnostics: bool,
-) -> Result<()> {
-    let manifest = find_manifest(file)?;
-    let message_format = if disable_color_diagnostics {
+fn check(ctx: &Context, command: &'static str, args: CheckArgs) -> Result<()> {
+    let manifest = find_manifest(args.path)?;
+    let message_format = if args.disable_color_diagnostics {
         "--message-format=json"
     } else {
         "--message-format=json-diagnostic-rendered-ansi"
     };
 
-    let status = ctx
-        .cargo()
-        .arg(command)
+    let mut cmd = ctx.cargo();
+
+    cmd.arg(command)
         .arg(message_format)
         .arg("--keep-going")
         .arg("--all-targets")
         .arg("--manifest-path")
         .arg(manifest.as_file_path())
         .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit())
-        .spawn()?
-        .wait()?;
+        .stderr(Stdio::inherit());
+
+    for arg in args.passthrough_args {
+        cmd.arg(arg);
+    }
+
+    let status = cmd.spawn()?.wait()?;
 
     if status.success() {
         Ok(())
