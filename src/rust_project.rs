@@ -1,6 +1,5 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt::Display;
-use std::fs::File;
 use std::path::PathBuf;
 
 use anyhow::{Result, anyhow};
@@ -301,7 +300,7 @@ pub(crate) fn find_sysroot(ctx: &Context) -> Result<Utf8PathBuf> {
 
 pub(crate) fn compute_project_json(
     ctx: &Context,
-    discover_args: DiscoverArgs,
+    #[allow(unused)] discover_args: DiscoverArgs,
     metadata: Metadata,
     manifest_path: FilePath<'_>,
 ) -> Result<ProjectJson> {
@@ -310,7 +309,13 @@ pub(crate) fn compute_project_json(
     debug!(sysroot = %sysroot);
 
     let sysroot_src = sysroot.join("lib/rustlib/src/rust/library");
-    let crates = crates_from_metadata(ctx, discover_args, metadata, manifest_path)?;
+    let crates = crates_from_metadata(
+        ctx,
+        #[cfg(not(target_os = "windows"))]
+        discover_args.flamegraph,
+        metadata,
+        manifest_path,
+    )?;
 
     Ok(ProjectJson {
         sysroot,
@@ -565,14 +570,13 @@ impl PackageGraph {
 
 fn crates_from_metadata(
     ctx: &Context,
-    discover_args: DiscoverArgs,
+    #[cfg(not(target_os = "windows"))] flamegraph: Option<PathBuf>,
     metadata: Metadata,
     manifest_path: FilePath<'_>,
 ) -> Result<Vec<Crate>> {
     #[cfg(not(target_os = "windows"))]
     let pprof_guard = {
-        discover_args
-            .flamegraph
+        flamegraph
             .as_ref()
             .map(|path| {
                 Ok::<_, anyhow::Error>((
@@ -607,7 +611,7 @@ fn crates_from_metadata(
     #[cfg(not(target_os = "windows"))]
     if let Some((guard, path)) = pprof_guard {
         let report = guard.report().build()?;
-        let file = File::create(path)?;
+        let file = std::fs::File::create(path)?;
 
         report.flamegraph(file)?;
     }
