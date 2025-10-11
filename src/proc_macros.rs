@@ -6,9 +6,9 @@ use anyhow::Result;
 use cargo_metadata::camino::Utf8PathBuf;
 use cargo_metadata::{Artifact, BuildScript, Message, PackageId};
 
+use crate::Context;
 use crate::rust_project::PackageNode;
 use crate::util::{FilePath, FilePathBuf};
-use crate::{Context, log_progress};
 
 pub(crate) fn build_compile_time_dependencies(
     ctx: &Context,
@@ -55,16 +55,16 @@ pub(crate) fn build_compile_time_dependencies(
                 if let Some(dylib) = filenames.into_iter().find(is_dylib)
                     && target.is_proc_macro()
                 {
-                    log_progress(format!("proc-macro {} built", target.name))?;
+                    ctx.log_progress(format!("proc-macro {} built", target.name))?;
 
                     dylibs.insert(package_id, dylib.try_into()?);
                 }
             }
             Message::BuildScriptExecuted(script) => {
                 if let Some(pkg) = names.get(&script.package_id) {
-                    log_progress(format!("build script {} run", pkg.name))?;
+                    ctx.log_progress(format!("build script {} run", pkg.name))?;
                 } else {
-                    log_progress("build script run")?;
+                    ctx.log_progress("build script run")?;
                 }
 
                 build_scripts.insert(script.package_id.clone(), script);

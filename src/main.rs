@@ -5,6 +5,7 @@ mod util;
 
 use std::env;
 use std::fs::{self, File};
+use std::io::{self, IsTerminal};
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::time::Instant;
@@ -15,7 +16,7 @@ use cargo_metadata::camino::Utf8PathBuf;
 use clap::Parser;
 use rust_project::ProjectJson;
 use tracing::level_filters::LevelFilter;
-use tracing::{debug, error};
+use tracing::{debug, error, info};
 use tracing_appender::non_blocking::WorkerGuard;
 
 use crate::cli::{CheckArgs, DiscoverArgs, FeatureArgs};
@@ -51,9 +52,26 @@ fn main() -> Result<()> {
 
 struct Context {
     cargo_home: Option<PathBuf>,
+    is_tty: bool,
 }
 
 impl Context {
+    fn log_progress<T>(&self, message: T) -> Result<()>
+    where
+        T: Into<String>,
+    {
+        let message = message.into();
+
+        if self.is_tty {
+            info!("{message}");
+        } else {
+            let progress = DiscoverProjectData::Progress { message };
+            println!("{}", serde_json::to_string(&progress)?);
+        }
+
+        Ok(())
+    }
+
     fn cargo(&self) -> Command {
         self.toolchain_command("cargo")
     }
@@ -75,15 +93,17 @@ impl Context {
 
 impl From<&CargoSubspace> for Context {
     fn from(value: &CargoSubspace) -> Self {
+        let is_tty = io::stdout().is_terminal();
         Context {
             cargo_home: value.cargo_home.clone(),
+            is_tty,
         }
     }
 }
 
 fn main_inner(args: CargoSubspace) -> Result<()> {
     let execution_start = Instant::now();
-    let ctx = (&args).into();
+    let ctx: Context = (&args).into();
 
     match args.command {
         SubspaceCommand::Version => {
@@ -91,7 +111,7 @@ fn main_inner(args: CargoSubspace) -> Result<()> {
         }
         SubspaceCommand::Discover { discover_args, arg } => match arg {
             DiscoverArgument::Path(path) => {
-                log_progress("Looking for manifest path")?;
+                ctx.log_progress("Looking for manifest path")?;
                 let manifest_path = find_manifest(path)?;
 
                 discover(&ctx, discover_args, manifest_path.as_file_path())?;
@@ -110,13 +130,13 @@ fn main_inner(args: CargoSubspace) -> Result<()> {
 }
 
 fn set_up_tracing(args: &CargoSubspace) -> Result<Option<WorkerGuard>> {
-    let level = if args.verbose {
-        LevelFilter::DEBUG
-    } else {
-        LevelFilter::WARN
-    };
+    if io::stdout().is_terminal() {
+        let level = if args.verbose {
+            LevelFilter::DEBUG
+        } else {
+            LevelFilter::INFO
+        };
 
-    if args.log_to_stdout {
         tracing_subscriber::fmt().with_max_level(level).init();
 
         Ok(None)
@@ -129,6 +149,12 @@ fn set_up_tracing(args: &CargoSubspace) -> Result<Option<WorkerGuard>> {
             .log_location
             .clone()
             .unwrap_or_else(|| home.join(DEFAULT_LOG_LOCATION));
+
+        let level = if args.verbose {
+            LevelFilter::DEBUG
+        } else {
+            LevelFilter::WARN
+        };
 
         fs::create_dir_all(&log_location)?;
 
@@ -158,7 +184,7 @@ fn discover(ctx: &Context, discover_args: DiscoverArgs, manifest_path: FilePath<
     let target_triple = rustc_info
         .lines()
         .find_map(|line| line.strip_prefix("host: "));
-    log_progress("Fetching metadata")?;
+    ctx.log_progress("Fetching metadata")?;
     let mut cmd = MetadataCommand::new();
     cmd.manifest_path(manifest_path);
 
@@ -212,7 +238,11 @@ fn discover(ctx: &Context, discover_args: DiscoverArgs, manifest_path: FilePath<
         })?,
         project,
     };
-    let json = serde_json::to_string(&output)?;
+    let json = if ctx.is_tty {
+        serde_json::to_string_pretty(&output)?
+    } else {
+        serde_json::to_string(&output)?
+    };
 
     println!("{json}");
 
@@ -221,7 +251,9 @@ fn discover(ctx: &Context, discover_args: DiscoverArgs, manifest_path: FilePath<
 
 fn check(ctx: &Context, command: &'static str, args: CheckArgs) -> Result<()> {
     let manifest = find_manifest(args.path)?;
-    let message_format = if args.disable_color_diagnostics {
+    let message_format = if ctx.is_tty {
+        "--message-format=human"
+    } else if args.disable_color_diagnostics {
         "--message-format=json"
     } else {
         "--message-format=json-diagnostic-rendered-ansi"
@@ -242,37 +274,13 @@ fn check(ctx: &Context, command: &'static str, args: CheckArgs) -> Result<()> {
         cmd.arg(arg);
     }
 
-    let status = cmd.spawn()?.wait()?;
+    let output = cmd.spawn()?.wait_with_output()?;
 
-    if status.success() {
+    if output.status.success() {
         Ok(())
     } else {
-        log_error(format!("Failed to run `cargo {command}`"))?;
         Err(anyhow!("Failed to run check"))
     }
-}
-
-fn log_progress<T>(message: T) -> Result<()>
-where
-    T: Into<String>,
-{
-    let message = message.into();
-
-    let progress = DiscoverProjectData::Progress { message };
-    println!("{}", serde_json::to_string(&progress)?);
-    Ok(())
-}
-
-fn log_error<T>(message: T) -> Result<()>
-where
-    T: Into<String>,
-{
-    let progress = DiscoverProjectData::Error {
-        error: message.into(),
-        source: None,
-    };
-    println!("{}", serde_json::to_string(&progress)?);
-    Ok(())
 }
 
 fn find_manifest(path: FilePathBuf) -> Result<FilePathBuf> {

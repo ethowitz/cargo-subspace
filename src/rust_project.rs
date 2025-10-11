@@ -10,10 +10,10 @@ use cargo_metadata::{BuildScript, Edition, Metadata, PackageId};
 use serde::Serialize;
 use tracing::debug;
 
+use crate::Context;
 use crate::cli::DiscoverArgs;
 use crate::proc_macros::build_compile_time_dependencies;
 use crate::util::{FilePath, FilePathBuf};
-use crate::{Context, log_progress};
 
 #[derive(Debug, Clone, Serialize)]
 pub(crate) struct ProjectJson {
@@ -305,7 +305,7 @@ pub(crate) fn compute_project_json(
     metadata: Metadata,
     manifest_path: FilePath<'_>,
 ) -> Result<ProjectJson> {
-    log_progress("Finding sysroot")?;
+    ctx.log_progress("Finding sysroot")?;
     let sysroot = find_sysroot(ctx)?;
     debug!(sysroot = %sysroot);
 
@@ -589,7 +589,7 @@ fn crates_from_metadata(
     let mut graph = PackageGraph::lower_from_metadata(metadata)?;
     let original_package_count = graph.graph.len();
 
-    log_progress("Pruning metadata")?;
+    ctx.log_progress("Pruning metadata")?;
     graph.prune(manifest_path)?;
 
     debug!(
@@ -597,11 +597,11 @@ fn crates_from_metadata(
         new_package_count = graph.graph.len()
     );
 
-    log_progress("Building proc macros")?;
+    ctx.log_progress("Building proc macros")?;
     let (proc_macro_dylibs, build_scripts) =
         build_compile_time_dependencies(ctx, manifest_path, &graph.graph)?;
 
-    log_progress("Constructing crate graph")?;
+    ctx.log_progress("Constructing crate graph")?;
     let crates = graph.lower_to_crates(proc_macro_dylibs, build_scripts)?;
 
     #[cfg(not(target_os = "windows"))]
