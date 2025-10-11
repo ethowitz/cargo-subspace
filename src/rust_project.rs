@@ -1,7 +1,5 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt::Display;
-#[cfg(not(target_os = "windows"))]
-use std::fs::File;
 use std::path::PathBuf;
 
 use anyhow::{Result, anyhow};
@@ -613,7 +611,7 @@ fn crates_from_metadata(
     #[cfg(not(target_os = "windows"))]
     if let Some((guard, path)) = pprof_guard {
         let report = guard.report().build()?;
-        let file = File::create(path)?;
+        let file = std::fs::File::create(path)?;
 
         report.flamegraph(file)?;
     }
