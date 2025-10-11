@@ -14,12 +14,6 @@ pub struct CargoSubspace {
     #[arg(long, short)]
     pub verbose: bool,
 
-    /// Emit logs to stdout.
-    ///
-    /// NOTE: Including this flag will break rust-analyzer!
-    #[arg(long)]
-    pub log_to_stdout: bool,
-
     /// The explicit path to the directory containing your cargo binaries. By default,
     /// `cargo-subspace` will use the binaries on your `PATH`.
     #[arg(long, env = "CARGO_HOME")]
