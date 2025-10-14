@@ -99,7 +99,7 @@ pub struct CheckArgs {
 #[derive(PartialEq, Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum DiscoverArgument {
-    Path(FilePathBuf),
+    Path(Utf8PathBuf),
     Buildfile(FilePathBuf),
 }
 

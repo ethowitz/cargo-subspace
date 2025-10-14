@@ -248,7 +248,7 @@ fn discover(ctx: &Context, discover_args: DiscoverArgs, manifest_path: FilePath<
 }
 
 fn check(ctx: &Context, command: &'static str, args: CheckArgs) -> Result<()> {
-    let manifest = find_manifest(args.path)?;
+    let manifest = find_manifest(args.path.into())?;
     let message_format = if ctx.is_tty {
         "--message-format=human"
     } else if args.disable_color_diagnostics {
@@ -281,7 +281,7 @@ fn check(ctx: &Context, command: &'static str, args: CheckArgs) -> Result<()> {
     }
 }
 
-fn find_manifest(path: FilePathBuf) -> Result<FilePathBuf> {
+fn find_manifest(path: Utf8PathBuf) -> Result<FilePathBuf> {
     let path = std::path::absolute(&path)?;
     let Some(parent) = path.parent() else {
         anyhow::bail!("Invalid path: could not get parent");
