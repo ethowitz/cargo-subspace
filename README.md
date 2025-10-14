@@ -139,13 +139,8 @@ also be set via lspconfig.
 
 ### Kate
 
-Kate doesn't seem to include the typical cargo home (`<YOUR HOME DIRECTORY>/.cargo/bin`) directory
-on the `PATH` it passes to rust-analyzer, so you'll need to pass the cargo home path to
-`cargo-subspace` directly and provide an absolute path to the `cargo-subspace` binary itself.
-In the example below, `<CARGO HOME>` should be substituted for an absolute path to the directory
-in which your cargo binaries reside (usually, this is `<YOUR HOME DIRECTORY>/.cargo/bin`).
-
-These settings should be specified in `Settings --> LSP Client --> User Server Settings`:
+These settings should be specified in `Settings --> LSP Client --> User Server Settings`. Note the
+`"useWorkspace": false` line; this is required!
 
 ```json
 {
@@ -154,10 +149,8 @@ These settings should be specified in `Settings --> LSP Client --> User Server S
       "useWorkspace": false,
       "initializationOptions": {
         "check": {
-          "allFeatures": true,
           "overrideCommand": [
-            "<CARGO HOME>/cargo-subspace",
-            "--cargo-home=<CARGO HOME>",
+            "cargo-subspace",
             "clippy",
             "$saved_file"
           ]
@@ -165,8 +158,7 @@ These settings should be specified in `Settings --> LSP Client --> User Server S
         "workspace": {
           "discoverConfig": {
             "command": [
-              "<CARGO HOME>/cargo-subspace",
-              "--cargo-home=<CARGO HOME>",
+              "cargo-subspace",
               "discover",
               "{arg}"
             ],
@@ -181,8 +173,6 @@ These settings should be specified in `Settings --> LSP Client --> User Server S
   }
 }
 ```
-
-Note the `"useWorkspace": false` line; this is required!
 
 ## Troubleshooting/Debugging
 

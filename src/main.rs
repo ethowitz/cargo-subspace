@@ -81,13 +81,11 @@ impl Context {
     }
 
     fn toolchain_command(&self, command: &str) -> Command {
-        let mut cmd = Command::new(command);
-
         if let Some(cargo_home) = self.cargo_home.as_ref() {
-            cmd.env("PATH", cargo_home);
+            Command::new(cargo_home.join("bin").join(command))
+        } else {
+            Command::new(command)
         }
-
-        cmd
     }
 }
 
@@ -189,7 +187,7 @@ fn discover(ctx: &Context, discover_args: DiscoverArgs, manifest_path: FilePath<
     cmd.manifest_path(manifest_path);
 
     if let Some(cargo_home) = ctx.cargo_home.as_ref() {
-        cmd.cargo_path(cargo_home.join("cargo"));
+        cmd.cargo_path(cargo_home.join("bin/cargo"));
     }
 
     if let Some(target_triple) = target_triple {
