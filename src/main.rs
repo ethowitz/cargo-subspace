@@ -81,13 +81,11 @@ impl Context {
     }
 
     fn toolchain_command(&self, command: &str) -> Command {
-        let mut cmd = Command::new(command);
-
         if let Some(cargo_home) = self.cargo_home.as_ref() {
-            cmd.env("PATH", cargo_home.join("bin"));
+            Command::new(cargo_home.join("bin").join(command))
+        } else {
+            Command::new(command)
         }
-
-        cmd
     }
 }
 

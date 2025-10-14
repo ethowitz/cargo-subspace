@@ -14,8 +14,8 @@ pub struct CargoSubspace {
     #[arg(long, short)]
     pub verbose: bool,
 
-    /// The explicit path to the directory containing your cargo binaries. By default,
-    /// `cargo-subspace` will use the binaries on your `PATH`.
+    /// The explicit path to your cargo home. Typically, this is `$HOME/.cargo`. If this flag is not
+    /// included, `cargo-subspace` will use the binaries on your `PATH`.
     #[arg(long, env = "CARGO_HOME")]
     pub cargo_home: Option<PathBuf>,
 
