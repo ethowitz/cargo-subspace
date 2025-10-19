@@ -98,6 +98,7 @@ Add the following to your `settings.json`:
         "Cargo.toml"
     ]
   },
+  "rust-analyzer.check.invocationStrategy": "once",
   "rust-analyzer.check.overrideCommand": [
     "cargo-subspace",
     "check", // You can also use "clippy" here
@@ -115,6 +116,7 @@ also be set via lspconfig.
 ```lua
 ["rust-analyzer"] = {
   check = {
+    invocationStrategy = "once",
     overrideCommand = {
       "cargo-subspace",
       "clippy",
@@ -149,6 +151,7 @@ These settings should be specified in `Settings --> LSP Client --> User Server S
       "useWorkspace": false,
       "initializationOptions": {
         "check": {
+          "invocationStrategy": "once",
           "overrideCommand": [
             "cargo-subspace",
             "clippy",

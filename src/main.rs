@@ -217,23 +217,8 @@ fn discover(ctx: &Context, discover_args: DiscoverArgs, manifest_path: FilePath<
     let metadata = cmd.exec()?;
     let project = compute_project_json(ctx, discover_args, metadata, manifest_path)?;
 
-    let root = ctx
-        .cargo()
-        .arg("locate-project")
-        .arg("--workspace")
-        .arg("--manifest-path")
-        .arg(manifest_path)
-        .arg("--message-format")
-        .arg("plain")
-        .output()?;
-    let buildfile: PathBuf = String::from_utf8(root.stdout)?.trim().into();
     let output = DiscoverProjectData::Finished {
-        buildfile: Utf8PathBuf::from_path_buf(buildfile).map_err(|e| {
-            anyhow!(
-                "Manifest path `{}` contains non-UTF-8 characters",
-                e.display()
-            )
-        })?,
+        buildfile: manifest_path.to_path_buf(),
         project,
     };
     let json = if ctx.is_tty {
