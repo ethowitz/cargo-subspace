@@ -1,22 +1,77 @@
 use std::{
     ffi::OsStr,
     fmt::Display,
+    io::{self, IsTerminal},
     ops::Deref,
     path::{Path, PathBuf},
+    process::Command,
     str::FromStr,
 };
 
-use anyhow::anyhow;
+use anyhow::{Result, anyhow};
 use cargo_metadata::camino::{Utf8Path, Utf8PathBuf};
 use serde::{Deserialize, Deserializer, Serialize};
+use tracing::info;
+
+use crate::cli::DiscoverProjectData;
+
+#[derive(Default, Clone)]
+pub struct Toolchain {
+    pub cargo_home: Option<PathBuf>,
+}
+
+impl Toolchain {
+    pub fn new(cargo_home: Option<PathBuf>) -> Self {
+        Self { cargo_home }
+    }
+
+    fn cargo_command(&self, cmd: &str) -> Command {
+        if let Some(cargo_home) = self.cargo_home.as_ref() {
+            Command::new(cargo_home.join("bin").join(cmd))
+        } else {
+            Command::new(cmd)
+        }
+    }
+
+    pub fn rustc(&self) -> Command {
+        self.cargo_command("rustc")
+    }
+
+    pub fn cargo(&self) -> Command {
+        self.cargo_command("cargo")
+    }
+}
+
+/// Returns true only if we are running in a terminal
+pub fn is_tty() -> bool {
+    io::stdout().is_terminal()
+}
+
+/// Emits a log message to stdout in the format expected by rust-analyzer. This log message is
+/// displayed to users in their editor.
+pub fn log_progress<T>(message: T) -> Result<()>
+where
+    T: Into<String>,
+{
+    let message = message.into();
+
+    if is_tty() {
+        info!("{message}");
+    } else {
+        let progress = DiscoverProjectData::Progress { message };
+        println!("{}", serde_json::to_string(&progress)?);
+    }
+
+    Ok(())
+}
 
 /// A wrapper around [`Path`] that can only store a file.
 #[derive(PartialEq, Clone, Copy, Debug)]
 #[repr(transparent)]
-pub(crate) struct FilePath<'a>(&'a Utf8Path);
+pub struct FilePath<'a>(&'a Utf8Path);
 
 impl FilePath<'_> {
-    pub(crate) fn parent(&self) -> Option<FilePath<'_>> {
+    pub fn parent(&self) -> Option<FilePath<'_>> {
         self.0.parent().map(FilePath)
     }
 }
@@ -50,10 +105,10 @@ impl Deref for FilePath<'_> {
 /// A wrapper around [`PathBuf`] that can only store a file.
 #[derive(PartialEq, Clone, Debug, Serialize)]
 #[repr(transparent)]
-pub(crate) struct FilePathBuf(Utf8PathBuf);
+pub struct FilePathBuf(Utf8PathBuf);
 
 impl FilePathBuf {
-    pub(crate) fn as_file_path(&self) -> FilePath<'_> {
+    pub fn as_file_path(&self) -> FilePath<'_> {
         FilePath(self.0.as_path())
     }
 }

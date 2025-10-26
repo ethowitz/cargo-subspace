@@ -28,3 +28,11 @@ anyhow = "1.0.100"
 [profile.release]
 debug = "full"
 strip = "none"
+
+[lib]
+name = "cargo_subspace"
+path = "src/lib.rs"
+
+[[bin]]
+name = "cargo_subspace"
+path = "src/main.rs"

@@ -1,21 +1,14 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fmt::Display;
-use std::path::PathBuf;
 
-use anyhow::{Result, anyhow};
+use cargo_metadata::Edition;
 use cargo_metadata::camino::Utf8PathBuf;
-use cargo_metadata::semver::Version;
-use cargo_metadata::{BuildScript, Edition, Metadata, PackageId};
 use serde::Serialize;
-use tracing::debug;
 
-use crate::Context;
-use crate::cli::DiscoverArgs;
-use crate::proc_macros::build_compile_time_dependencies;
-use crate::util::{FilePath, FilePathBuf};
+use crate::util::FilePathBuf;
 
 #[derive(Debug, Clone, Serialize)]
-pub(crate) struct ProjectJson {
+pub struct ProjectJson {
     /// Path to the sysroot directory.
     ///
     /// The sysroot is where rustc looks for the
@@ -31,7 +24,7 @@ pub(crate) struct ProjectJson {
     /// $ rustc --print sysroot
     /// /Users/yourname/.rustup/toolchains/stable-x86_64-apple-darwin
     /// ```
-    sysroot: Utf8PathBuf,
+    pub sysroot: Utf8PathBuf,
     /// Path to the directory with *source code* of
     /// sysroot crates.
     ///
@@ -50,7 +43,7 @@ pub(crate) struct ProjectJson {
     /// several different "sysroots" in one graph of
     /// crates.
     #[serde(skip_serializing_if = "Option::is_none")]
-    sysroot_src: Option<Utf8PathBuf>,
+    pub sysroot_src: Option<Utf8PathBuf>,
     // /// A ProjectJson describing the crates of the sysroot.
     // #[serde(skip_serializing_if = "Option::is_none")]
     // sysroot_project: Option<Box<ProjectJson>>,
@@ -64,7 +57,7 @@ pub(crate) struct ProjectJson {
     /// project. Must include all transitive
     /// dependencies as well as sysroot crate (libstd,
     /// libcore and such).
-    crates: Vec<Crate>,
+    pub crates: Vec<Crate>,
     /// Configuration for CLI commands.
     ///
     /// These are used for running and debugging binaries
@@ -90,24 +83,24 @@ pub(crate) struct ProjectJson {
     ///     "kind": "testOne"
     /// }
     /// ```
-    runnables: Vec<Runnable>,
+    pub runnables: Vec<Runnable>,
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub(crate) struct Crate {
+pub struct Crate {
     /// Optional crate name used for display purposes,
     /// without affecting semantics. See the `deps`
     /// key for semantically-significant crate names.
-    display_name: Option<String>,
+    pub display_name: Option<String>,
     /// Path to the root module of the crate.
-    root_module: FilePathBuf,
+    pub root_module: FilePathBuf,
     /// Edition of the crate.
-    edition: Edition,
+    pub edition: Edition,
     /// The version of the crate. Used for calculating
     /// the correct docs.rs URL.
-    version: Option<String>,
+    pub version: Option<String>,
     /// Dependencies
-    deps: Vec<Dep>,
+    pub deps: Vec<Dep>,
     /// Should this crate be treated as a member of
     /// current "workspace".
     ///
@@ -119,7 +112,7 @@ pub(crate) struct Crate {
     /// library and 3rd party crates to enable
     /// performance optimizations (rust-analyzer
     /// assumes that non-member crates don't change).
-    is_workspace_member: bool,
+    pub is_workspace_member: bool,
     /// Optionally specify the (super)set of `.rs`
     /// files comprising this crate.
     ///
@@ -136,7 +129,7 @@ pub(crate) struct Crate {
     /// rust-analyzer assumes that files from one
     /// source can't refer to files in another source.
     #[serde(skip_serializing_if = "Option::is_none")]
-    source: Option<CrateSource>,
+    pub source: Option<CrateSource>,
     // /// List of cfg groups this crate inherits.
     // ///
     // /// All cfg in these groups will be concatenated to
@@ -146,48 +139,48 @@ pub(crate) struct Crate {
     /// The set of cfgs activated for a given crate, like
     /// `["unix", "feature=\"foo\"", "feature=\"bar\""]`.
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    cfg: Vec<String>,
+    pub cfg: Vec<String>,
     /// Target tuple for this Crate.
     ///
     /// Used when running `rustc --print cfg`
     /// to get target-specific cfgs.
     #[serde(skip_serializing_if = "Option::is_none")]
-    target: Option<String>,
+    pub target: Option<String>,
     /// Environment variables, used for
     /// the `env!` macro
     #[serde(skip_serializing_if = "HashMap::is_empty")]
-    env: HashMap<String, String>,
+    pub env: HashMap<String, String>,
 
     /// Whether the crate is a proc-macro crate.
-    is_proc_macro: bool,
+    pub is_proc_macro: bool,
     /// For proc-macro crates, path to compiled
     /// proc-macro (.so file).
     #[serde(skip_serializing_if = "Option::is_none")]
-    proc_macro_dylib_path: Option<FilePathBuf>,
+    pub proc_macro_dylib_path: Option<FilePathBuf>,
 
     /// Repository, matching the URL that would be used
     /// in Cargo.toml.
     #[serde(skip_serializing_if = "Option::is_none")]
-    repository: Option<String>,
+    pub repository: Option<String>,
 
     /// Build-specific data about this crate.
     #[serde(skip_serializing_if = "Option::is_none")]
-    build: Option<BuildInfo>,
+    pub build: Option<BuildInfo>,
 
     #[serde(default)]
-    proc_macro_cwd: Option<FilePathBuf>,
+    pub proc_macro_cwd: Option<FilePathBuf>,
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub(crate) struct Runnable {
+pub struct Runnable {
     /// The program invoked by the runnable.
     ///
     /// For example, this might be `cargo`, `buck`, or `bazel`.
-    program: String,
+    pub program: String,
     /// The arguments passed to `program`.
-    args: Vec<String>,
+    pub args: Vec<String>,
     /// The current working directory of the runnable.
-    cwd: String,
+    pub cwd: String,
     /// Used to decide what code lens to offer.
     ///
     /// `testOne`: This runnable will be used when the user clicks the 'Run Test'
@@ -197,13 +190,13 @@ pub(crate) struct Runnable {
     /// `{label}` and `{test_id}`. `{label}` will be replaced
     /// with the `Build::label` and `{test_id}` will be replaced
     /// with the test name.
-    kind: RunnableKind,
+    pub kind: RunnableKind,
 }
 
 #[allow(unused)]
 #[derive(Debug, Clone, Serialize)]
 #[serde(into = "String")]
-pub(crate) enum RunnableKind {
+pub enum RunnableKind {
     TestOne,
     String(String),
 }
@@ -224,23 +217,23 @@ impl From<RunnableKind> for String {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub(crate) struct Dep {
+pub struct Dep {
     /// Index of a crate in the `crates` array.
     #[serde(rename = "crate")]
-    crate_index: usize,
+    pub crate_index: usize,
     /// Name as should appear in the (implicit)
     /// `extern crate name` declaration.
-    name: String,
+    pub name: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub(crate) struct CrateSource {
-    include_dirs: Vec<String>,
-    exclude_dirs: Vec<String>,
+pub struct CrateSource {
+    pub include_dirs: Vec<String>,
+    pub exclude_dirs: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub(crate) struct BuildInfo {
+pub struct BuildInfo {
     /// The name associated with this crate.
     ///
     /// This is determined by the build system that produced
@@ -249,14 +242,14 @@ pub(crate) struct BuildInfo {
     ///
     /// Do not attempt to parse the contents of this string; it is a build system-specific
     /// identifier similar to `Crate::display_name`.
-    label: String,
+    pub label: String,
     /// Path corresponding to the build system-specific file defining the crate.
-    build_file: String,
+    pub build_file: String,
     /// The kind of target.
     ///
     /// This information is used to determine what sort
     /// of runnable codelens to provide, if any.
-    target_kind: TargetKind,
+    pub target_kind: TargetKind,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -288,347 +281,4 @@ impl TargetKind {
 
         TargetKind::Bin
     }
-}
-
-pub(crate) fn find_sysroot(ctx: &Context) -> Result<Utf8PathBuf> {
-    let p: PathBuf = String::from_utf8(ctx.rustc().arg("--print").arg("sysroot").output()?.stdout)?
-        .trim()
-        .into();
-
-    Utf8PathBuf::from_path_buf(p).map_err(|_| anyhow!("Path contains non-UTF-8 characters"))
-}
-
-pub(crate) fn compute_project_json(
-    ctx: &Context,
-    #[allow(unused)] discover_args: DiscoverArgs,
-    metadata: Metadata,
-    manifest_path: FilePath<'_>,
-) -> Result<ProjectJson> {
-    ctx.log_progress("Finding sysroot")?;
-    let sysroot = find_sysroot(ctx)?;
-    debug!(sysroot = %sysroot);
-
-    let sysroot_src = sysroot.join("lib/rustlib/src/rust/library");
-    let crates = crates_from_metadata(
-        ctx,
-        #[cfg(not(target_os = "windows"))]
-        discover_args.flamegraph,
-        metadata,
-        manifest_path,
-    )?;
-
-    Ok(ProjectJson {
-        sysroot,
-        sysroot_src: Some(sysroot_src),
-        // TODO: do i need this? buck excludes it...
-        // sysroot_project: None,
-        // TODO: do i need this? buck excludes it...
-        // cfg_groups: HashMap::new(),
-        crates,
-        // TODO: Add support for runnables
-        runnables: vec![],
-    })
-}
-
-/// Represents one target of a single package
-#[derive(Clone)]
-pub(crate) struct PackageNode {
-    pub(crate) name: String,
-    targets: Vec<Target>,
-    manifest_path: FilePathBuf,
-    version: Version,
-    is_workspace_member: bool,
-    repository: Option<String>,
-    features: Vec<String>,
-    dependencies: Vec<Dependency>,
-}
-
-#[derive(Clone)]
-pub(crate) struct Dependency {
-    id: PackageId,
-    name: String,
-}
-
-#[derive(Clone)]
-pub(crate) struct Target {
-    name: String,
-    edition: Edition,
-    kind: Vec<cargo_metadata::TargetKind>,
-    root_module: FilePathBuf,
-}
-
-impl Target {
-    fn is_proc_macro(&self) -> bool {
-        self.kind
-            .iter()
-            .any(|k| matches!(k, cargo_metadata::TargetKind::ProcMacro))
-    }
-}
-
-struct PackageGraph {
-    graph: HashMap<PackageId, PackageNode>,
-}
-
-impl PackageGraph {
-    fn lower_from_metadata(metadata: Metadata) -> Result<Self> {
-        let mut graph = HashMap::new();
-        let workspace_members: HashSet<&PackageId> =
-            HashSet::from_iter(metadata.workspace_members.iter());
-        let mut features: HashMap<PackageId, HashSet<String>> = HashMap::new();
-        let mut dependencies: HashMap<PackageId, Vec<Dependency>> = HashMap::new();
-
-        if let Some(it) = metadata.resolve {
-            for node in it.nodes {
-                features
-                    .entry(node.id.clone())
-                    .or_default()
-                    .extend(node.features.iter().map(|feat| feat.to_string()));
-
-                // TODO: test that this works with renamed dependencies
-                dependencies
-                    .entry(node.id)
-                    .or_default()
-                    .extend(node.deps.into_iter().map(|dep| Dependency {
-                        id: dep.pkg,
-                        name: dep.name,
-                    }));
-            }
-        }
-
-        for mut package in metadata.packages {
-            // If the package is not a member of the workspace, don't include any test, example, or
-            // bench targets.
-            if !workspace_members.contains(&package.id) {
-                package
-                    .targets
-                    .retain(|t| !t.is_test() && !t.is_example() && !t.is_bench());
-            }
-
-            let targets = package
-                .targets
-                .into_iter()
-                .map(|t| {
-                    Ok(Target {
-                        name: t.name,
-                        edition: t.edition,
-                        kind: t.kind,
-                        root_module: t.src_path.try_into()?,
-                    })
-                })
-                .collect::<Result<Vec<_>>>()?;
-
-            let node = PackageNode {
-                name: package.name.to_string(),
-                targets,
-                manifest_path: package.manifest_path.try_into()?,
-                version: package.version,
-                is_workspace_member: workspace_members.contains(&package.id),
-                repository: package.repository,
-                features: features
-                    .get(&package.id)
-                    .cloned()
-                    .unwrap_or_default()
-                    .into_iter()
-                    .collect(),
-                dependencies: dependencies.get(&package.id).cloned().unwrap_or_default(),
-            };
-
-            graph.insert(package.id, node);
-        }
-
-        Ok(Self { graph })
-    }
-
-    /// Prunes the graph such that the remaining nodes consist only of:
-    /// 1. The package with the given manifest path; and
-    /// 2. The dependencies of that package
-    fn prune(&mut self, manifest_path: FilePath<'_>) -> Result<()> {
-        let abs = std::path::absolute(manifest_path.as_std_path())?;
-        let Some((id, _)) = self
-            .graph
-            .iter()
-            .find(|(_, node)| node.manifest_path.as_std_path() == abs)
-        else {
-            anyhow::bail!(
-                "Could not find workspace member with manifest path {}",
-                manifest_path.as_ref().display()
-            )
-        };
-
-        let mut filtered_packages: HashSet<PackageId> = HashSet::default();
-        let mut stack = vec![id];
-
-        while let Some(id) = stack.pop() {
-            let Some(pkg) = self.graph.get(id) else {
-                continue;
-            };
-
-            for descendant in pkg.dependencies.iter() {
-                if !filtered_packages.contains(&descendant.id) {
-                    stack.push(&descendant.id);
-                }
-            }
-
-            filtered_packages.insert(id.clone());
-        }
-
-        self.graph.retain(|id, _| filtered_packages.contains(id));
-
-        Ok(())
-    }
-
-    /// Lowers the graph to a vector of crates
-    fn lower_to_crates(
-        self,
-        proc_macro_dylibs: HashMap<PackageId, FilePathBuf>,
-        build_scripts: HashMap<PackageId, BuildScript>,
-    ) -> Result<Vec<Crate>> {
-        let mut crates = Vec::new();
-        let mut deps = Vec::new();
-        let mut indexes: HashMap<PackageId, usize> = HashMap::new();
-
-        for (id, package) in self.graph.into_iter() {
-            // Represents the indices of the `crates` array corresponding to lib targets for this
-            // package
-            let lib_indices: Vec<_> = package
-                .targets
-                .iter()
-                .enumerate()
-                .filter(|(_, target)| matches!(TargetKind::new(&target.kind), TargetKind::Lib))
-                .map(|(i, target)| {
-                    // I *think* this is the right way to handle target names in this
-                    // context...
-                    (crates.len() + i, target.name.clone().replace('-', "_"))
-                })
-                .collect();
-
-            let mut env = HashMap::new();
-            let mut include_dirs = vec![package.manifest_path.parent().unwrap().to_string()];
-            if let Some(script) = build_scripts.get(&id) {
-                env.insert("OUT_DIR".into(), script.out_dir.to_string());
-
-                if let Some(parent) = script.out_dir.parent() {
-                    include_dirs.push(parent.to_string());
-                    env.extend(script.env.clone().into_iter());
-                }
-            }
-
-            for target in package.targets {
-                let target_kind = TargetKind::new(&target.kind);
-                if matches!(target_kind, TargetKind::Lib) {
-                    indexes.insert(id.clone(), crates.len());
-                }
-
-                // If the target is a bin or a test, we want to include all the lib targets of the
-                // package in the dependencies for this target. This is what gives bin/test targets
-                // access to the public items defined in lib targets in the same crate
-                let mut this_deps = vec![];
-                if !matches!(target_kind, TargetKind::Lib) {
-                    for (crate_index, name) in lib_indices.clone().into_iter() {
-                        this_deps.push(Dep { crate_index, name });
-                    }
-                }
-
-                deps.push(package.dependencies.clone());
-
-                crates.push(Crate {
-                    display_name: Some(package.name.to_string().replace('-', "_")),
-                    root_module: target.root_module.clone(),
-                    edition: target.edition,
-                    version: Some(package.version.to_string()),
-                    deps: this_deps,
-                    is_workspace_member: package.is_workspace_member,
-                    is_proc_macro: target.is_proc_macro(),
-                    repository: package.repository.clone(),
-                    build: Some(BuildInfo {
-                        label: target.name.clone(),
-                        build_file: package.manifest_path.to_string(),
-                        target_kind,
-                    }),
-                    proc_macro_dylib_path: proc_macro_dylibs.get(&id).cloned(),
-                    source: Some(CrateSource {
-                        include_dirs: include_dirs.clone(),
-                        exclude_dirs: vec![".git".into(), "target".into()],
-                    }),
-                    // cfg_groups: None,
-                    cfg: package
-                        .features
-                        .clone()
-                        .into_iter()
-                        .map(|feature| format!("feature=\"{feature}\""))
-                        .collect(),
-                    target: None,
-                    env: env.clone(),
-                    proc_macro_cwd: package
-                        .manifest_path
-                        .as_file_path()
-                        .parent()
-                        .map(|a| a.into()),
-                });
-            }
-        }
-
-        for (c, deps) in crates.iter_mut().zip(deps.into_iter()) {
-            c.deps.extend(deps.into_iter().map(|dep| Dep {
-                name: dep.name,
-                crate_index: indexes.get(&dep.id).copied().unwrap(),
-            }));
-
-            // *shrug* buck does this, not sure if it's necessary
-            c.deps.sort_by_key(|dep| dep.crate_index);
-        }
-
-        Ok(crates)
-    }
-}
-
-fn crates_from_metadata(
-    ctx: &Context,
-    #[cfg(not(target_os = "windows"))] flamegraph: Option<PathBuf>,
-    metadata: Metadata,
-    manifest_path: FilePath<'_>,
-) -> Result<Vec<Crate>> {
-    #[cfg(not(target_os = "windows"))]
-    let pprof_guard = {
-        flamegraph
-            .as_ref()
-            .map(|path| {
-                Ok::<_, anyhow::Error>((
-                    pprof::ProfilerGuardBuilder::default()
-                        .frequency(100000)
-                        .blocklist(&["libc", "libgcc", "pthread", "vdso"])
-                        .build()?,
-                    path,
-                ))
-            })
-            .transpose()?
-    };
-
-    let mut graph = PackageGraph::lower_from_metadata(metadata)?;
-    let original_package_count = graph.graph.len();
-
-    ctx.log_progress("Pruning metadata")?;
-    graph.prune(manifest_path)?;
-
-    debug!(
-        original_package_count,
-        new_package_count = graph.graph.len()
-    );
-
-    ctx.log_progress("Building proc macros")?;
-    let (proc_macro_dylibs, build_scripts) =
-        build_compile_time_dependencies(ctx, manifest_path, &graph.graph)?;
-
-    ctx.log_progress("Constructing crate graph")?;
-    let crates = graph.lower_to_crates(proc_macro_dylibs, build_scripts)?;
-
-    #[cfg(not(target_os = "windows"))]
-    if let Some((guard, path)) = pprof_guard {
-        let report = guard.report().build()?;
-        let file = std::fs::File::create(path)?;
-
-        report.flamegraph(file)?;
-    }
-
-    Ok(crates)
 }
