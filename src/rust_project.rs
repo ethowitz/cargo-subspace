@@ -259,7 +259,7 @@ pub(crate) struct BuildInfo {
     target_kind: TargetKind,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Hash)]
 #[serde(rename_all = "camelCase")]
 pub enum TargetKind {
     Bin,
@@ -483,20 +483,23 @@ impl PackageGraph {
         proc_macro_dylibs: HashMap<PackageId, FilePathBuf>,
         build_scripts: HashMap<PackageId, BuildScript>,
     ) -> Result<Vec<Crate>> {
-        let iter = self.graph.into_iter().flat_map(|(id, package)| {
-            // TODO: clones
-            package
-                .clone()
-                .targets
-                .into_iter()
-                .map(move |target| (id.clone(), package.clone(), target))
-        });
-
         let mut crates = Vec::new();
         let mut deps = Vec::new();
         let mut indexes: HashMap<PackageId, usize> = HashMap::new();
 
-        for (id, package, target) in iter {
+        for (id, package) in self.graph.into_iter() {
+            // Represents the indices of the `crates` array corresponding to lib targets for this
+            // package
+            let lib_indices: Vec<_> = package
+                .targets
+                .iter()
+                .enumerate()
+                .filter_map(|(i, target)| {
+                    matches!(TargetKind::new(&target.kind), TargetKind::Lib)
+                        .then(|| (crates.len() + i, target.name.clone().replace('-', "_")))
+                })
+                .collect();
+
             let mut env = HashMap::new();
             let mut include_dirs = vec![package.manifest_path.parent().unwrap().to_string()];
             if let Some(script) = build_scripts.get(&id) {
@@ -508,57 +511,66 @@ impl PackageGraph {
                 }
             }
 
-            let target_kind = TargetKind::new(&target.kind);
-            if matches!(target_kind, TargetKind::Lib) {
-                indexes.insert(id.clone(), crates.len());
+            for target in package.targets {
+                let target_kind = TargetKind::new(&target.kind);
+                if matches!(target_kind, TargetKind::Lib) {
+                    indexes.insert(id.clone(), crates.len());
+                }
+
+                // If the target is a bin or a test, we want to include all the lib targets of the
+                // package in the dependencies for this target. This is what gives bin/test targets
+                // access to the public items defined in lib targets in the same crate
+                let mut this_deps = vec![];
+                if !matches!(target_kind, TargetKind::Lib) {
+                    for (crate_index, name) in lib_indices.clone().into_iter() {
+                        this_deps.push(Dep { crate_index, name });
+                    }
+                }
+
+                deps.push(package.dependencies.clone());
+
+                crates.push(Crate {
+                    display_name: Some(package.name.to_string().replace('-', "_")),
+                    root_module: target.root_module.clone(),
+                    edition: target.edition,
+                    version: Some(package.version.to_string()),
+                    deps: this_deps,
+                    is_workspace_member: package.is_workspace_member,
+                    is_proc_macro: target.is_proc_macro(),
+                    repository: package.repository.clone(),
+                    build: Some(BuildInfo {
+                        label: target.name.clone(),
+                        build_file: package.manifest_path.to_string(),
+                        target_kind,
+                    }),
+                    proc_macro_dylib_path: proc_macro_dylibs.get(&id).cloned(),
+                    source: Some(CrateSource {
+                        include_dirs: include_dirs.clone(),
+                        exclude_dirs: vec![".git".into(), "target".into()],
+                    }),
+                    // cfg_groups: None,
+                    cfg: package
+                        .features
+                        .clone()
+                        .into_iter()
+                        .map(|feature| format!("feature=\"{feature}\""))
+                        .collect(),
+                    target: None,
+                    env: env.clone(),
+                    proc_macro_cwd: package
+                        .manifest_path
+                        .as_file_path()
+                        .parent()
+                        .map(|a| a.into()),
+                });
             }
-
-            deps.push(package.dependencies);
-
-            crates.push(Crate {
-                display_name: Some(package.name.to_string().replace('-', "_")),
-                root_module: target.root_module.clone(),
-                edition: target.edition,
-                version: Some(package.version.to_string()),
-                deps: vec![],
-                is_workspace_member: package.is_workspace_member,
-                is_proc_macro: target.is_proc_macro(),
-                repository: package.repository.clone(),
-                build: Some(BuildInfo {
-                    label: target.name.clone(),
-                    build_file: package.manifest_path.to_string(),
-                    target_kind,
-                }),
-                proc_macro_dylib_path: proc_macro_dylibs.get(&id).cloned(),
-                source: Some(CrateSource {
-                    include_dirs,
-                    exclude_dirs: vec![".git".into(), "target".into()],
-                }),
-                // cfg_groups: None,
-                cfg: package
-                    .features
-                    .clone()
-                    .into_iter()
-                    .map(|feature| format!("feature=\"{feature}\""))
-                    .collect(),
-                target: None,
-                env,
-                proc_macro_cwd: package
-                    .manifest_path
-                    .as_file_path()
-                    .parent()
-                    .map(|a| a.into()),
-            });
         }
 
         for (c, deps) in crates.iter_mut().zip(deps.into_iter()) {
-            c.deps = deps
-                .into_iter()
-                .map(|dep| Dep {
-                    name: dep.name,
-                    crate_index: indexes.get(&dep.id).copied().unwrap(),
-                })
-                .collect();
+            c.deps.extend(deps.into_iter().map(|dep| Dep {
+                name: dep.name,
+                crate_index: indexes.get(&dep.id).copied().unwrap(),
+            }));
 
             // *shrug* buck does this, not sure if it's necessary
             c.deps.sort_by_key(|dep| dep.crate_index);
