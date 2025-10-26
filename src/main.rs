@@ -53,6 +53,7 @@ fn run_inner(command: SubspaceCommand, cargo_home: Option<PathBuf>) -> Result<()
         SubspaceCommand::Discover {
             all_features,
             no_default_features,
+            #[cfg(not(target_os = "windows"))]
             mut flamegraph,
             arg,
         } => {

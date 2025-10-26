@@ -48,6 +48,7 @@ pub enum SubspaceCommand {
         #[arg(long, conflicts_with = "all_features")]
         no_default_features: bool,
 
+        #[cfg(not(target_os = "windows"))]
         /// Profiles the discover process and writes a flamegraph to the given path
         #[arg(long, hide = true)]
         flamegraph: Option<PathBuf>,
