@@ -259,7 +259,7 @@ pub(crate) struct BuildInfo {
     target_kind: TargetKind,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum TargetKind {
     Bin,
@@ -496,6 +496,8 @@ impl PackageGraph {
                 .enumerate()
                 .filter_map(|(i, target)| {
                     matches!(TargetKind::new(&target.kind), TargetKind::Lib)
+                        // I *think* this is the right way to handle target names in this
+                        // context...
                         .then(|| (crates.len() + i, target.name.clone().replace('-', "_")))
                 })
                 .collect();
