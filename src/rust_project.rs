@@ -494,11 +494,11 @@ impl PackageGraph {
                 .targets
                 .iter()
                 .enumerate()
-                .filter_map(|(i, target)| {
-                    matches!(TargetKind::new(&target.kind), TargetKind::Lib)
-                        // I *think* this is the right way to handle target names in this
-                        // context...
-                        .then(|| (crates.len() + i, target.name.clone().replace('-', "_")))
+                .filter(|(_, target)| matches!(TargetKind::new(&target.kind), TargetKind::Lib))
+                .map(|(i, target)| {
+                    // I *think* this is the right way to handle target names in this
+                    // context...
+                    (crates.len() + i, target.name.clone().replace('-', "_"))
                 })
                 .collect();
 
