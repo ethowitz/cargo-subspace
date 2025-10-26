@@ -20,7 +20,7 @@ pub struct ProjectJson {
     /// To see the current value of sysroot, you
     /// can query rustc:
     ///
-    /// ```
+    /// ```sh
     /// $ rustc --print sysroot
     /// /Users/yourname/.rustup/toolchains/stable-x86_64-apple-darwin
     /// ```
