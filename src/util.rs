@@ -50,7 +50,7 @@ impl Deref for FilePath<'_> {
 /// A wrapper around [`PathBuf`] that can only store a file.
 #[derive(PartialEq, Clone, Debug, Serialize)]
 #[repr(transparent)]
-pub(crate) struct FilePathBuf(Utf8PathBuf);
+pub struct FilePathBuf(Utf8PathBuf);
 
 impl FilePathBuf {
     pub(crate) fn as_file_path(&self) -> FilePath<'_> {

@@ -25,6 +25,19 @@ pprof = { version = "0.15.0", features = ["flamegraph"] }
 [build-dependencies]
 anyhow = "1.0.100"
 
+[dev-dependencies]
+cargo-test-macro = "0.4.5"
+cargo-test-support = "=0.8.0" # Pinned to avoid pulling in breaking changes
+snapbox = "0.6.21"
+
 [profile.release]
 debug = "full"
 strip = "none"
+
+[lib]
+name = "cargo_subspace"
+path = "src/lib.rs"
+
+[[bin]]
+name = "cargo-subspace"
+path = "src/main.rs"
