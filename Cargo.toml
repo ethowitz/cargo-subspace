@@ -34,5 +34,5 @@ name = "cargo_subspace"
 path = "src/lib.rs"
 
 [[bin]]
-name = "cargo_subspace"
+name = "cargo-subspace"
 path = "src/main.rs"
