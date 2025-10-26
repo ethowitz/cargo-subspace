@@ -30,39 +30,28 @@ pub struct CargoSubspace {
 }
 
 #[derive(PartialEq, Clone, Debug, Parser)]
-pub struct FeatureArgs {
-    /// Activate all features in the workspace.
-    ///
-    /// Note that this flag applies to the whole workspace, not just the crate you're currently
-    /// working on.
-    #[arg(long, conflicts_with = "no_default_features")]
-    pub all_features: bool,
-
-    /// Don't include default features during the workspace discovery process.
-    ///
-    /// Note that this flag applies to the whole workspace, not just the crate you're currently
-    /// working on.
-    #[arg(long, conflicts_with = "all_features")]
-    pub no_default_features: bool,
-}
-
-#[derive(PartialEq, Clone, Debug, Parser)]
-pub struct DiscoverArgs {
-    /// Profiles the discover process and writes a flamegraph to the given path
-    #[arg(long, hide = true)]
-    pub flamegraph: Option<PathBuf>,
-
-    #[command(flatten)]
-    pub feature_args: FeatureArgs,
-}
-
-#[derive(PartialEq, Clone, Debug, Parser)]
 pub enum SubspaceCommand {
     /// Print the cargo-subspace version and sysroot path and exit
     Version,
     Discover {
-        #[command(flatten)]
-        discover_args: DiscoverArgs,
+        /// Activate all features in the workspace.
+        ///
+        /// Note that this flag applies to the whole workspace, not just the crate you're currently
+        /// working on.
+        #[arg(long, conflicts_with = "no_default_features")]
+        all_features: bool,
+
+        /// Don't include default features during the workspace discovery process.
+        ///
+        /// Note that this flag applies to the whole workspace, not just the crate you're currently
+        /// working on.
+        #[arg(long, conflicts_with = "all_features")]
+        no_default_features: bool,
+
+        #[cfg(not(target_os = "windows"))]
+        /// Profiles the discover process and writes a flamegraph to the given path
+        #[arg(long, hide = true)]
+        flamegraph: Option<PathBuf>,
 
         arg: DiscoverArgument,
     },
