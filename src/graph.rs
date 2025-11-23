@@ -4,9 +4,12 @@ use anyhow::Result;
 use cargo_metadata::{BuildScript, Edition, Metadata, PackageId, semver::Version};
 
 use crate::{
+    config::SubspaceConfig,
     rust_project::{BuildInfo, Crate, CrateSource, Dep, TargetKind},
     util::{FilePath, FilePathBuf},
 };
+
+use crate::config::CONFIG_FILE_NAME;
 
 pub struct CrateGraph {
     pub inner: HashMap<PackageId, PackageNode>,
@@ -91,30 +94,54 @@ impl CrateGraph {
     /// Prunes the graph such that the remaining nodes consist only of:
     /// 1. The package with the given manifest path; and
     /// 2. The dependencies of that package
-    pub fn prune(&mut self, manifest_path: FilePath<'_>) -> Result<()> {
+    pub fn prune(
+        &mut self,
+        subspace_config: &SubspaceConfig,
+        crate_name: &str,
+        manifest_path: FilePath<'_>,
+    ) -> Result<()> {
+        if !subspace_config.includes_package(&manifest_path) {
+            anyhow::bail!("Crate `{crate_name}` not included in {CONFIG_FILE_NAME}");
+        }
+
         let abs = std::path::absolute(manifest_path.as_std_path())?;
         let Some((id, _)) = self
             .inner
             .iter()
             .find(|(_, node)| node.manifest_path.as_std_path() == abs)
         else {
-            anyhow::bail!(
-                "Could not find workspace member with manifest path {}",
-                manifest_path.as_ref().display()
-            )
+            anyhow::bail!("Could not find workspace member with manifest path {manifest_path}",)
         };
 
+        self.prune_inner(vec![id.clone()])
+    }
+
+    pub fn prune_with_config(&mut self, subspace_config: &SubspaceConfig) -> Result<()> {
+        let included_ws_members = self
+            .inner
+            .iter()
+            .filter_map(|(id, pkg)| {
+                (pkg.is_workspace_member && subspace_config.includes_package(&pkg.manifest_path))
+                    .then_some(id)
+            })
+            .cloned()
+            .collect();
+
+        self.prune_inner(included_ws_members)
+    }
+
+    fn prune_inner(&mut self, ids: Vec<PackageId>) -> Result<()> {
         let mut filtered_packages: HashSet<PackageId> = HashSet::default();
-        let mut stack = vec![id];
+        let mut stack = ids;
 
         while let Some(id) = stack.pop() {
-            let Some(pkg) = self.inner.get(id) else {
+            let Some(pkg) = self.inner.get(&id) else {
                 continue;
             };
 
             for descendant in pkg.dependencies.iter() {
                 if !filtered_packages.contains(&descendant.id) {
-                    stack.push(&descendant.id);
+                    stack.push(descendant.id.clone());
                 }
             }
 

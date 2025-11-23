@@ -8,10 +8,14 @@ use std::{
 
 use anyhow::{Result, anyhow};
 use cargo_metadata::camino::Utf8PathBuf;
-use cargo_subspace::{DiscoverRunner, ProjectJson, check, find_manifest};
 use cargo_subspace::{
+    CONFIG_FILE_NAME,
     cli::{CargoSubspace, DiscoverArgument, DiscoverProjectData, SubspaceCommand},
     util::{self, Toolchain},
+};
+use cargo_subspace::{
+    CheckCommand, DiscoverRunner, FeatureOption, ProjectJson, SubspaceConfig, check, find_manifest,
+    get_metadata,
 };
 use clap::Parser;
 use tracing::{debug, error, level_filters::LevelFilter};
@@ -53,10 +57,61 @@ fn run_inner(command: SubspaceCommand, cargo_home: Option<PathBuf>) -> Result<()
         SubspaceCommand::Discover {
             all_features,
             no_default_features,
+            features,
             #[cfg(not(target_os = "windows"))]
             mut flamegraph,
             arg,
         } => {
+            let toolchain = Toolchain::new(cargo_home);
+            let subspace_config = SubspaceConfig::find(&toolchain)?;
+
+            let features = match (all_features, no_default_features, features) {
+                (false, false, None) => FeatureOption::Default,
+                (true, false, None) => FeatureOption::All,
+                (false, true, None) => FeatureOption::NoDefault,
+                (false, false, Some(features)) => FeatureOption::Some(features),
+                _ => unreachable!("disallowed by clap"),
+            };
+            let manifest_path = match arg {
+                DiscoverArgument::Path(path) => find_manifest(path)?,
+                DiscoverArgument::Buildfile(manifest_path) => manifest_path,
+            };
+            let metadata = get_metadata(
+                &toolchain,
+                Some(manifest_path.as_file_path()),
+                features,
+                false,
+            )?;
+            let crate_name = metadata
+                .packages
+                .iter()
+                .find_map(|package| {
+                    (package.manifest_path == manifest_path.as_std_path())
+                        .then(|| package.name.to_string())
+                })
+                .unwrap_or_else(|| "unknown crate".into());
+            // TODO: what is this config.workspace option actually doing?
+            let buildfile = if subspace_config.workspace {
+                metadata.workspace_root.join("Cargo.toml")
+            } else {
+                if !subspace_config.includes_package(&manifest_path.as_file_path()) {
+                    let output = DiscoverProjectData::Error {
+                        error: format!("Crate `{crate_name}` not included in {CONFIG_FILE_NAME}",),
+                        source: None,
+                    };
+                    // TODO: dry this up
+                    let json = if util::is_tty() {
+                        serde_json::to_string_pretty(&output)?
+                    } else {
+                        serde_json::to_string(&output)?
+                    };
+
+                    println!("{json}");
+                }
+
+                manifest_path.to_path_buf()
+            };
+
             #[cfg(not(target_os = "windows"))]
             let pprof_guard = {
                 flamegraph
@@ -73,21 +128,15 @@ fn run_inner(command: SubspaceCommand, cargo_home: Option<PathBuf>) -> Result<()
                     .transpose()?
             };
 
-            let toolchain = Toolchain::new(cargo_home);
-            let manifest_path = match arg {
-                DiscoverArgument::Path(path) => find_manifest(path)?,
-                DiscoverArgument::Buildfile(manifest_path) => manifest_path,
-            };
-
-            let mut runner = DiscoverRunner::new(toolchain.clone(), manifest_path.clone());
-            runner = match (all_features, no_default_features) {
-                (false, false) => runner.with_default_features(),
-                (true, false) => runner.with_all_features(),
-                (false, true) => runner.with_no_default_features(),
-                (true, true) => unreachable!("disallowed by clap"),
-            };
-
-            let crates = runner.run()?.into_crates()?;
+            let crates = DiscoverRunner::new(
+                toolchain.clone(),
+                manifest_path.clone(),
+                subspace_config,
+                crate_name,
+                metadata,
+            )
+            .run()?
+            .into_crates()?;
 
             let p: PathBuf = String::from_utf8(
                 toolchain
@@ -116,10 +165,7 @@ fn run_inner(command: SubspaceCommand, cargo_home: Option<PathBuf>) -> Result<()
                 runnables: vec![],
             };
 
-            let output = DiscoverProjectData::Finished {
-                buildfile: manifest_path.to_path_buf(),
-                project,
-            };
+            let output = DiscoverProjectData::Finished { buildfile, project };
             let json = if util::is_tty() {
                 serde_json::to_string_pretty(&output)?
             } else {
@@ -136,8 +182,8 @@ fn run_inner(command: SubspaceCommand, cargo_home: Option<PathBuf>) -> Result<()
                 report.flamegraph(file)?;
             }
         }
-        SubspaceCommand::Check { args } => check("check", args, cargo_home)?,
-        SubspaceCommand::Clippy { args } => check("clippy", args, cargo_home)?,
+        SubspaceCommand::Check { args } => check(CheckCommand::Check, args, cargo_home)?,
+        SubspaceCommand::Clippy { args } => check(CheckCommand::Clippy, args, cargo_home)?,
     }
 
     debug!(execution_time_seconds = execution_start.elapsed().as_secs_f32());

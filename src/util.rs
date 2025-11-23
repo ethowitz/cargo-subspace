@@ -1,6 +1,6 @@
 use std::{
     ffi::OsStr,
-    fmt::Display,
+    fmt::{self, Display},
     io::{self, IsTerminal},
     ops::Deref,
     path::{Path, PathBuf},
@@ -25,7 +25,7 @@ impl Toolchain {
         Self { cargo_home }
     }
 
-    fn cargo_command(&self, cmd: &str) -> Command {
+    fn toolchain_command(&self, cmd: &str) -> Command {
         if let Some(cargo_home) = self.cargo_home.as_ref() {
             Command::new(cargo_home.join("bin").join(cmd))
         } else {
@@ -34,11 +34,11 @@ impl Toolchain {
     }
 
     pub fn rustc(&self) -> Command {
-        self.cargo_command("rustc")
+        self.toolchain_command("rustc")
     }
 
     pub fn cargo(&self) -> Command {
-        self.cargo_command("cargo")
+        self.toolchain_command("cargo")
     }
 }
 
@@ -76,6 +76,12 @@ impl FilePath<'_> {
     }
 }
 
+impl fmt::Display for FilePath<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 impl From<FilePath<'_>> for PathBuf {
     fn from(value: FilePath<'_>) -> Self {
         value.0.into()
@@ -85,6 +91,12 @@ impl From<FilePath<'_>> for PathBuf {
 impl From<FilePath<'_>> for FilePathBuf {
     fn from(value: FilePath<'_>) -> Self {
         FilePathBuf(value.0.into())
+    }
+}
+
+impl AsRef<Utf8Path> for FilePath<'_> {
+    fn as_ref(&self) -> &Utf8Path {
+        self.0
     }
 }
 

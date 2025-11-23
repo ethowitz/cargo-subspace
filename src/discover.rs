@@ -4,91 +4,62 @@ use std::{
 };
 
 use anyhow::Result;
-use cargo_metadata::{Artifact, Message, Metadata, MetadataCommand, camino::Utf8PathBuf};
+use cargo_metadata::{Artifact, Message, Metadata, camino::Utf8PathBuf};
 
 use crate::{
+    config::SubspaceConfig,
     graph::CrateGraph,
     util::{self, FilePathBuf, Toolchain},
 };
 
 pub struct DiscoverRunner {
     toolchain: Toolchain,
-    features: FeatureOption,
+    subspace_config: SubspaceConfig,
     manifest_path: FilePathBuf,
+    crate_name: String,
+    metadata: Metadata,
 }
 
 impl DiscoverRunner {
-    pub fn new(toolchain: Toolchain, manifest_path: FilePathBuf) -> Self {
+    pub fn new(
+        toolchain: Toolchain,
+        manifest_path: FilePathBuf,
+        subspace_config: SubspaceConfig,
+        crate_name: String,
+        metadata: Metadata,
+    ) -> Self {
         Self {
             manifest_path,
             toolchain,
-            features: FeatureOption::Default,
+            subspace_config,
+            crate_name,
+            metadata,
         }
     }
-
-    pub fn with_all_features(mut self) -> Self {
-        self.features = FeatureOption::All;
-        self
-    }
-
-    pub fn with_no_default_features(mut self) -> Self {
-        self.features = FeatureOption::NoDefault;
-        self
-    }
-
-    pub fn with_default_features(mut self) -> Self {
-        self.features = FeatureOption::Default;
-        self
-    }
-
     /// Fetches the cargo metadata, constructs a crate graph, and prunes the graph such that it
     /// only contains dependencies of the crate for the given manifest path
     pub fn run(self) -> Result<CrateGraph> {
-        // Get the cargo workspace metadata
-        let metadata = self.get_metadata()?;
-
         // Lower the metadata into our internal crate graph representation
-        let mut graph = CrateGraph::from_metadata(metadata)?;
+        let mut graph = CrateGraph::from_metadata(self.metadata.clone())?;
 
-        // Prune the graph such that the remaining nodes are only those reachable from the node
-        // with the given manifest path
-        graph.prune(self.manifest_path.as_file_path())?;
+        if self.subspace_config.uses_explicit_filters() {
+            // If the workspace config uses explicit package filtering, we prune the graph using
+            // the crates specific in the config
+            graph.prune_with_config(&self.subspace_config)?;
+        } else {
+            // Prune the graph such that the remaining nodes are only those reachable from the node
+            // with the given manifest path
+            graph.prune(
+                &self.subspace_config,
+                &self.crate_name,
+                self.manifest_path.as_file_path(),
+            )?;
+        }
 
         // Build the compile time dependencies (proc macros & build scripts) for the pruned graph
         self.build_compile_time_dependencies(&mut graph)?;
 
         Ok(graph)
-    }
-
-    fn get_metadata(&self) -> Result<Metadata> {
-        util::log_progress("Fetching metadata")?;
-
-        let rustc_info = String::from_utf8(self.toolchain.rustc().arg("-vV").output()?.stdout)?;
-        let mut cmd = MetadataCommand::new();
-        cmd.manifest_path(self.manifest_path.as_std_path());
-
-        if let Some(cargo_home) = self.toolchain.cargo_home.as_ref() {
-            cmd.cargo_path(cargo_home.join("bin/cargo"));
-        }
-
-        let target_triple = rustc_info
-            .lines()
-            .find_map(|line| line.strip_prefix("host: "));
-        if let Some(target_triple) = target_triple {
-            cmd.other_options(["--filter-platform".into(), target_triple.into()]);
-        }
-
-        match self.features {
-            FeatureOption::All => {
-                cmd.features(cargo_metadata::CargoOpt::AllFeatures);
-            }
-            FeatureOption::NoDefault => {
-                cmd.features(cargo_metadata::CargoOpt::NoDefaultFeatures);
-            }
-            FeatureOption::Default => (),
-        }
-
-        Ok(cmd.exec()?)
     }
 
     fn build_compile_time_dependencies(&self, graph: &mut CrateGraph) -> Result<()> {
@@ -145,13 +116,6 @@ impl DiscoverRunner {
 
         Ok(())
     }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum FeatureOption {
-    NoDefault,
-    All,
-    Default,
 }
 
 fn is_dylib(path: &Utf8PathBuf) -> bool {

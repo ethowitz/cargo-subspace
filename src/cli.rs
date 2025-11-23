@@ -38,15 +38,22 @@ pub enum SubspaceCommand {
         ///
         /// Note that this flag applies to the whole workspace, not just the crate you're currently
         /// working on.
-        #[arg(long, conflicts_with = "no_default_features")]
+        #[arg(long, conflicts_with_all = ["features", "no_default_features"])]
         all_features: bool,
 
         /// Don't include default features during the workspace discovery process.
         ///
         /// Note that this flag applies to the whole workspace, not just the crate you're currently
         /// working on.
-        #[arg(long, conflicts_with = "all_features")]
+        #[arg(long, conflicts_with_all = ["all_features", "features"])]
         no_default_features: bool,
+
+        /// A list of features to activate.
+        ///
+        /// Note that this flag applies to the whole workspace, not just the crate you're currently
+        /// working on.
+        #[arg(long, conflicts_with_all = ["all_features", "no_default_features"])]
+        features: Option<Vec<String>>,
 
         #[cfg(not(target_os = "windows"))]
         /// Profiles the discover process and writes a flamegraph to the given path
@@ -77,6 +84,12 @@ pub struct CheckArgs {
     /// doesn't correctly render ANSI color codes.
     #[arg(long)]
     pub disable_color_diagnostics: bool,
+
+    /// If this option is true, the `check` command will return diagnostics for all crates in the
+    /// workspace. If it is false, `check` will only run on the current crate (i.e. the crate whose
+    /// file you have open).
+    #[clap(long, default_value_t)]
+    pub workspace: bool,
 
     /// Extra arguments to be passed through, unchanged, to `cargo check`.
     ///
