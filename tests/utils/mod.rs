@@ -165,9 +165,7 @@ fn discover_src_command(root: &Path, path: &Path) -> Execs {
     let mut execs = process(root);
     execs
         .arg("discover")
-        // TODO(windows): the path is written into the JSON as it is displayed, and the backslashes
-        // in a Windows path are escape chars in JSON
-        .arg(format!("{{\"path\":\"{}\"}}", path.display()));
+        .arg(serde_json::json!({ "path": path }).to_string());
     execs
 }
 
@@ -175,9 +173,7 @@ fn discover_manifest_command(root: &Path, path: &Path) -> Execs {
     let mut execs = process(root);
     execs
         .arg("discover")
-        // TODO(windows): the path is written into the JSON as it is displayed, and the backslashes
-        // in a Windows path are escape chars in JSON
-        .arg(format!("{{\"buildfile\":\"{}\"}}", path.display()));
+        .arg(serde_json::json!({ "buildfile": path }).to_string());
     execs
 }
 
@@ -1081,9 +1077,9 @@ impl CrateBuilder {
 
         for (name, dependency) in dependencies {
             let s = match dependency {
-                // TODO(windows): the backslashes in a Windows path are escape chars in a TOML basic
-                // string
-                Dependency::Path(path) => format!(r#"{name} = {{ path = "{}"}}"#, path.display()),
+                // A literal string, because the backslashes in a Windows path are escape chars in a
+                // TOML basic string
+                Dependency::Path(path) => format!("{name} = {{ path = '{}' }}", path.display()),
                 Dependency::Raw(value) => format!("{name} = {value}"),
                 Dependency::External {
                     version,

@@ -720,12 +720,7 @@ fn unusable_log_location_does_not_abort_discover() {
             .arg("--log-location")
             .arg(&not_a_directory)
             .arg("discover")
-            // TODO(windows): the path is written into the JSON as it is displayed, and the
-            // backslashes in a Windows path are escape chars in JSON
-            .arg(format!(
-                r#"{{"buildfile":"{}"}}"#,
-                foo.file("Cargo.toml").display()
-            )),
+            .arg(json!({ "buildfile": foo.file("Cargo.toml") }).to_string()),
     );
 
     assert!(output.contains("foo"));

@@ -63,8 +63,8 @@ fn all_targets_are_checked() {
         .with_stdout_data(
             str![[r#"
 ...
-[..]"src_path":"[..]tests/integration.rs"[..]"message":"unused variable: `in_test`"[..]
-[..]"src_path":"[..]examples/demo.rs"[..]"message":"unused variable: `in_example`"[..]
+[..]"src_path":"[..]integration.rs"[..]"message":"unused variable: `in_test`"[..]
+[..]"src_path":"[..]demo.rs"[..]"message":"unused variable: `in_example`"[..]
 ...
 "#]]
             // The targets are checked in no particular order
