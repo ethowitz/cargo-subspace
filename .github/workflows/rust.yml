@@ -123,7 +123,10 @@ jobs:
     - name: 🧪 Build the tests to run with cargo ${{ matrix.cargo }}
       if: ${{ matrix.cargo }}
       env:
-        CARGO_TARGET_DIR: ${{ github.workspace }}/../target
+        # Outside of the repository, and without any `..` in the path: the tests create their crates
+        # in this directory, and `cargo-subspace` compares their paths with the normalized ones that
+        # cargo reports
+        CARGO_TARGET_DIR: ${{ runner.temp }}/target
       run: |
         cargo test --locked --no-run --message-format=json \
           | jq -r 'select(.reason == "compiler-artifact" and .profile.test == true and .executable != null) | .executable' \
