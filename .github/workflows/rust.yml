@@ -110,7 +110,7 @@ jobs:
 
     - name: 🧪 Run tests
       if: ${{ !matrix.cargo }}
-      run: cargo test --locked
+      run: cargo test --locked --no-fail-fast
 
     - name: Install cargo ${{ matrix.cargo }}
       if: ${{ matrix.cargo }}
