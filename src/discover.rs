@@ -4,12 +4,17 @@ use std::{
 };
 
 use anyhow::Result;
-use cargo_metadata::{Artifact, Message, Metadata, MetadataCommand, camino::Utf8PathBuf};
+use cargo_metadata::{
+    Artifact, Message, Metadata, MetadataCommand, camino::Utf8PathBuf, semver::Version,
+};
 
 use crate::{
     graph::CrateGraph,
     util::{self, FilePathBuf, Toolchain},
 };
+
+/// The first toolchain version whose cargo supports `--compile-time-deps`
+const COMPILE_TIME_DEPS_MIN_VERSION: Version = Version::new(1, 89, 0);
 
 pub struct DiscoverRunner {
     toolchain: Toolchain,
@@ -92,26 +97,31 @@ impl DiscoverRunner {
     }
 
     fn build_compile_time_dependencies(&self, graph: &mut CrateGraph) -> Result<()> {
-        // TODO: check rust version to decide whether to use --compile-time-deps, which allows us to
-        // only build proc macros/build scripts during this step instead of building the whole crate
-        let child = self
+        // `--compile-time-deps` lets us build only proc macros/build scripts during this step
+        // instead of building the whole crate, but it is only available in newer toolchains
+        let compile_time_deps_available = self
             .toolchain
-            .cargo()
-            // .arg("+nightly")
-            .arg("check")
-            // .arg("--compile-time-deps")
+            .cargo_version()
+            .is_some_and(|v| v >= COMPILE_TIME_DEPS_MIN_VERSION);
+
+        let mut cmd = self.toolchain.cargo();
+        cmd.arg("check")
             .arg("--quiet")
             .arg("--message-format")
             .arg("json")
             .arg("--keep-going")
             .arg("--all-targets")
             .arg("--manifest-path")
-            .arg(self.manifest_path.as_std_path())
-            // .arg("-Zunstable-options")
-            // .env("__CARGO_TEST_CHANNEL_OVERRIDE_DO_NOT_USE_THIS", "nightly")
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .spawn()?;
+            .arg(self.manifest_path.as_std_path());
+
+        if compile_time_deps_available {
+            // The flag is still unstable, so stable toolchains need to be told to allow it
+            cmd.arg("--compile-time-deps")
+                .arg("-Zunstable-options")
+                .env("__CARGO_TEST_CHANNEL_OVERRIDE_DO_NOT_USE_THIS", "nightly");
+        }
+
+        let child = cmd.stdout(Stdio::piped()).stderr(Stdio::null()).spawn()?;
 
         for line in BufReader::new(child.stdout.unwrap()).lines() {
             let line = line?;

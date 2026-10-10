@@ -9,7 +9,10 @@ use std::{
 };
 
 use anyhow::{Result, anyhow};
-use cargo_metadata::camino::{Utf8Path, Utf8PathBuf};
+use cargo_metadata::{
+    camino::{Utf8Path, Utf8PathBuf},
+    semver::Version,
+};
 use serde::{Deserialize, Deserializer, Serialize};
 use tracing::info;
 
@@ -39,6 +42,41 @@ impl Toolchain {
 
     pub fn cargo(&self) -> Command {
         self.cargo_command("cargo")
+    }
+
+    pub fn cargo_version(&self) -> Option<Version> {
+        let output = self.cargo().arg("--version").output().ok()?;
+        parse_cargo_version(&String::from_utf8(output.stdout).ok()?)
+    }
+}
+
+/// Parses the output of `cargo --version` (e.g. `cargo 1.89.0 (c24e10642 2025-06-23)`).
+fn parse_cargo_version(output: &str) -> Option<Version> {
+    let version = output.strip_prefix("cargo ")?.split_whitespace().next()?;
+    Version::parse(version).ok()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parses_stable_version() {
+        let version = parse_cargo_version("cargo 1.89.0 (c24e10642 2025-06-23)\n").unwrap();
+        assert_eq!(version, Version::new(1, 89, 0));
+    }
+
+    #[test]
+    fn test_parses_nightly_version() {
+        let version = parse_cargo_version("cargo 1.90.0-nightly (abcdef012 2025-07-01)").unwrap();
+        assert_eq!((version.major, version.minor), (1, 90));
+        assert!(!version.pre.is_empty());
+    }
+
+    #[test]
+    fn test_rejects_garbage() {
+        assert!(parse_cargo_version("not cargo").is_none());
+        assert!(parse_cargo_version("").is_none());
     }
 }
 
