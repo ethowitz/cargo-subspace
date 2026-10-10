@@ -153,7 +153,7 @@ impl CrateGraph {
 
                 if let Some(parent) = script.out_dir.parent() {
                     include_dirs.push(parent.to_string());
-                    env.extend(script.env.clone().into_iter());
+                    env.extend(script.env.clone());
                 }
             }
 
@@ -212,7 +212,7 @@ impl CrateGraph {
             }
         }
 
-        for (c, deps) in crates.iter_mut().zip(deps.into_iter()) {
+        for (c, deps) in crates.iter_mut().zip(deps) {
             c.deps.extend(deps.into_iter().map(|dep| Dep {
                 name: dep.name,
                 crate_index: indexes.get(&dep.id).copied().unwrap(),
