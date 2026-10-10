@@ -19,6 +19,14 @@ tracing = "0.1.41"
 tracing-appender = "0.2.3"
 tracing-subscriber = { version = "0.3.20", features = ["json"] }
 
+[dev-dependencies]
+# These two have to be updated together: the macro generates code that calls the internal API of
+# cargo-test-support, which changes between versions. They are pinned to avoid pulling in breaking
+# changes.
+cargo-test-macro = "=0.4.5"
+cargo-test-support = "=0.8.0"
+snapbox = "0.6.21"
+
 [target.'cfg(not(target_os = "windows"))'.dependencies]
 pprof = { version = "0.15.0", features = ["flamegraph"] }
 

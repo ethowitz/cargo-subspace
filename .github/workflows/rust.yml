@@ -47,11 +47,95 @@ jobs:
       run: cargo clippy --locked -- -D warnings
     
   test:
-    name: 🧪 Run tests
-    runs-on: ubuntu-latest
+    name: 🧪 Tests (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    # The experimental jobs can fail without failing the workflow
+    continue-on-error: ${{ matrix.experimental == true }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - name: linux, stable
+          os: ubuntu-latest
+
+        - name: macos, stable
+          os: macos-latest
+
+        - name: windows, stable
+          os: windows-latest
+          # TODO(windows): remove this when we make the necessary fixes to support windows correctly
+          experimental: true
+
+        # 1.74 is the oldest version of cargo that cargo-subspace works with, since it is the
+        # one that stabilized `--keep-going`
+        - name: linux, cargo 1.74
+          os: ubuntu-latest
+          cargo: 1.74.0
+
+        - name: linux, cargo 1.80
+          os: ubuntu-latest
+          cargo: 1.80.0
+
+        - name: linux, cargo 1.85
+          os: ubuntu-latest
+          cargo: 1.85.0
+
+        - name: linux, cargo 1.88
+          os: ubuntu-latest
+          cargo: 1.88.0
+
+        - name: linux, cargo 1.89
+          os: ubuntu-latest
+          cargo: 1.89.0
+
+        # What cargo prints changes in nightly before it does in stable (the layout of the build
+        # directory did, for example), so a failure here doesn't always mean a problem
+        - name: linux, cargo nightly
+          os: ubuntu-latest
+          cargo: nightly
+          experimental: true
+
+    defaults:
+      run:
+        shell: bash
 
     steps:
     - uses: actions/checkout@v4
 
+    - name: Install Rust stable
+      run: |
+        rustup toolchain install stable --profile minimal --component clippy
+        rustup default stable
+
     - name: 🧪 Run tests
+      if: ${{ !matrix.cargo }}
       run: cargo test --locked
+
+    - name: Install cargo ${{ matrix.cargo }}
+      if: ${{ matrix.cargo }}
+      run: rustup toolchain install ${{ matrix.cargo }} --profile minimal --component clippy
+
+    # The tests create their crates in `target/tmp`. When cargo looks for the workspace of one of
+    # them, it parses the manifests in the directories above it, which includes this repository's
+    # manifest, and versions older than 1.85 can't parse it because it uses the 2024 edition.
+    # Building the tests with the target directory outside of the repository avoids this
+    - name: 🧪 Build the tests to run with cargo ${{ matrix.cargo }}
+      if: ${{ matrix.cargo }}
+      env:
+        CARGO_TARGET_DIR: ${{ github.workspace }}/../target
+      run: |
+        cargo test --locked --no-run --message-format=json \
+          | jq -r 'select(.reason == "compiler-artifact" and .profile.test == true and .executable != null) | .executable' \
+          > test-executables.txt
+
+    - name: 🧪 Run tests with cargo ${{ matrix.cargo }}
+      if: ${{ matrix.cargo }}
+      run: |
+        status=0
+        while read -r executable; do
+          echo "::group::$executable"
+          RUSTUP_TOOLCHAIN=${{ matrix.cargo }} "$executable" || status=1
+          echo "::endgroup::"
+        done < test-executables.txt
+        exit $status

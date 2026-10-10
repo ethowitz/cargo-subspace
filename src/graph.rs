@@ -8,6 +8,7 @@ use crate::{
     util::{FilePath, FilePathBuf},
 };
 
+#[derive(Debug)]
 pub struct CrateGraph {
     pub inner: HashMap<PackageId, PackageNode>,
 }
@@ -27,7 +28,6 @@ impl CrateGraph {
                     .or_default()
                     .extend(node.features.iter().map(|feat| feat.to_string()));
 
-                // TODO: test that this works with renamed dependencies
                 dependencies
                     .entry(node.id)
                     .or_default()
@@ -227,7 +227,7 @@ impl CrateGraph {
 }
 
 /// Represents one target of a single package
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct PackageNode {
     pub name: String,
     pub targets: Vec<Target>,
@@ -241,13 +241,13 @@ pub struct PackageNode {
     pub proc_macro_dylib: Option<FilePathBuf>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Dependency {
     pub id: PackageId,
     pub name: String,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Target {
     pub name: String,
     pub edition: Edition,

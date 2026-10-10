@@ -1,7 +1,7 @@
 pub mod cli;
-mod discover;
-mod graph;
-mod rust_project;
+pub mod discover;
+pub mod graph;
+pub mod rust_project;
 pub mod util;
 
 use std::path::PathBuf;
